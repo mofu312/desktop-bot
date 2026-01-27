@@ -1,0 +1,36 @@
+# 🚀 快速开始 (Quick Start)
+
+按照以下步骤，在几分钟内运行您的 ResonaDesktopPet。
+
+## 1. 安装
+1. **克隆仓库**：`git clone https://github.com/YourUsername/Resona-Desktop-Pet.git`
+2. **环境配置**：
+   - 右键点击 `setup.ps1`，选择 **"使用 PowerShell 运行"**。
+   - **方案 2 (推荐)**：为您创建一个独立的 Runtime 环境，不影响系统 Python。
+   - **方案 3**：在当前目录下创建 `.venv` 虚拟环境。
+   - 脚本会自动下载必要的库、默认资源包和 STT 模型。
+
+## 2. 配置 AI 后端
+1. 打开根目录下的 `config.cfg`。
+2. **LLM 配置**：
+   - `model_type`: 选择 1 (DeepSeek/OpenAI), 5 (Gemini) 或 3 (Claude)。
+   - `api_key`: 填入您的 API Key。
+   - `base_url`: 如果使用 DeepSeek 或本地转发，请填写（如 `https://api.deepseek.com`）。
+3. **SoVITS 配置**：
+   - 确保已按照 README 的说明获取 SoVITS 整合包并解压到指定路径。
+   - 设置 `sovits_enabled = true`。
+
+## 3. 运行
+- 双击 `run.bat`。
+- 看到桌面宠物出现后，您可以：
+  - **点击它**：弹出对话框进行文字交流。
+  - **按下 Alt+Q**：开始录音，松开后自动发送语音指令。
+  - **右键点击**：切换服装、切换角色包或进入设置。
+
+## 4. 进阶
+- 想要修改角色的性格？编辑 `packs/Resona_Default/prompts/character_prompt.txt`。
+- 想要添加自定义触发动作？运行 `tools/trigger_editor.py`。
+- 想要更换立绘？使用 `tools/sprite_organizer.py`。
+
+---
+本文档部分使用大语言模型辅助生成，翻译亦由大语言模型完成，如出现任何偏差不代表作者的真实意愿。

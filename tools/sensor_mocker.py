@@ -1,0 +1,76 @@
+import sys
+import json
+from pathlib import Path
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QFormLayout, 
+                             QSlider, QSpinBox, QDoubleSpinBox, QLineEdit, QLabel, QGroupBox, QCheckBox)
+from PySide6.QtCore import Qt, QTimer
+
+class SensorMocker(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Resona 全量传感器模拟器 (DEBUG MODE)")
+        self.resize(500, 700)
+        self.project_root = Path(__file__).parent.parent
+        self.mock_file = self.project_root / "TEMP" / "mock_data.json"
+        self.mock_file.parent.mkdir(exist_ok=True)
+        
+        self.init_ui()
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.save_mock_data)
+        self.timer.start(200) # 高频同步保证调试手感
+
+    def init_ui(self):
+        central = QWidget(); self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
+        scroll = QGroupBox("模拟数据面板"); scroll_layout = QVBoxLayout(scroll)
+        f = QFormLayout()
+
+        # 硬件
+        self.cpu_temp = QDoubleSpinBox(); self.cpu_temp.setRange(0, 110); self.cpu_temp.setValue(45.0)
+        self.gpu_temp = QDoubleSpinBox(); self.gpu_temp.setRange(0, 110); self.gpu_temp.setValue(50.0)
+        self.cpu_usage = QDoubleSpinBox(); self.cpu_usage.setRange(0, 100); self.cpu_usage.setValue(10.0)
+        self.gpu_usage = QDoubleSpinBox(); self.gpu_usage.setRange(0, 100); self.gpu_usage.setValue(5.0)
+        
+        # 环境与交互
+        self.idle_sec = QSpinBox(); self.idle_sec.setRange(0, 86400); self.idle_sec.setValue(0)
+        self.fullscreen = QCheckBox("全屏模式运行中")
+        self.clip = QLineEdit(); self.clip.setPlaceholderText("伪造剪贴板...")
+        self.music_title = QLineEdit(); self.music_title.setPlaceholderText("歌名 - 歌手 (网易云模式)")
+        
+        # 窗口
+        self.win_pname = QLineEdit(); self.win_pname.setText("explorer.exe")
+        self.win_title = QLineEdit(); self.win_title.setText("桌面")
+        self.win_url = QLineEdit(); self.win_url.setPlaceholderText("https://...")
+        
+        # 天气与时间 (新)
+        self.weather = QLineEdit(); self.weather.setText("晴")
+        self.mock_date = QLineEdit(); self.mock_date.setPlaceholderText("MM-DD (如 05-20), 留空则用系统时间")
+        self.mock_time = QLineEdit(); self.mock_time.setPlaceholderText("HH:MM (如 23:30), 留空则用系统时间")
+
+        f.addRow("CPU 温度:", self.cpu_temp); f.addRow("GPU 温度:", self.gpu_temp)
+        f.addRow("CPU 占用:", self.cpu_usage); f.addRow("GPU 占用:", self.gpu_usage)
+        f.addRow("闲置时间(s):", self.idle_sec); f.addRow(self.fullscreen)
+        f.addRow("剪贴板内容:", self.clip)
+        f.addRow("正在播放(音乐):", self.music_title)
+        f.addRow("活跃进程名:", self.win_pname); f.addRow("窗口标题:", self.win_title); f.addRow("浏览器 URL:", self.win_url)
+        f.addRow("当前天气:", self.weather); f.addRow("伪造日期:", self.mock_date); f.addRow("伪造时间:", self.mock_time)
+        
+        scroll_layout.addLayout(f); layout.addWidget(scroll)
+        self.status = QLabel("状态: 模拟数据已实时映射"); layout.addWidget(self.status)
+
+    def save_mock_data(self):
+        data = {
+            "cpu_temp": self.cpu_temp.value(), "gpu_temp": self.gpu_temp.value(),
+            "cpu_usage": self.cpu_usage.value(), "gpu_usage": self.gpu_usage.value(),
+            "idle_sec": self.idle_sec.value(), "is_fullscreen": self.fullscreen.isChecked(),
+            "clip_text": self.clip.text(), "music_title": self.music_title.text(),
+            "win_pname": self.win_pname.text().lower(),
+            "win_title": self.win_title.text(), "win_url": self.win_url.text(),
+            "weather": {"condition": self.weather.text()},
+            "date": self.mock_date.text(), "time": self.mock_time.text()
+        }
+        with open(self.mock_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv); w = SensorMocker(); w.show(); sys.exit(app.exec())
