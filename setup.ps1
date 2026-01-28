@@ -99,12 +99,7 @@ else {
 # --- 3. Requirements ---
 if (-not $skipInstall) {
     Write-Host "[Resona] Installing dependencies using $PYTHON_EXEC ..."
-    $pipArgs = @("install", "-r", "requirements.txt", "--no-warn-script-location")
-    
-
-    if ($mode -eq '3') {
-        $pipArgs += "--only-binary=:all:"
-    }
+    $pipArgs = @("install", "-r", "requirements.txt", "--no-warn-script-location", "--upgrade")
     
     if ($useMirror -eq 'Y' -or $useMirror -eq 'y') {
         $pipArgs += @("-i", "https://pypi.tuna.tsinghua.edu.cn/simple")
