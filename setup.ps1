@@ -71,6 +71,14 @@ if ($mode -eq '3') {
         (Get-Content $pthFile) -replace '#import site', 'import site' | Set-Content $pthFile
         Invoke-WebRequest -Uri $PIP_GET_URL -OutFile 'runtime\get-pip.py'
         .\runtime\python.exe .\runtime\get-pip.py
+        
+
+        Write-Host '[Resona] Pre-installing build tools (setuptools, wheel)...'
+        $preInstallArgs = @("install", "setuptools", "wheel", "--no-warn-script-location")
+        if ($useMirror -eq 'Y' -or $useMirror -eq 'y') {
+            $preInstallArgs += @("-i", "https://pypi.tuna.tsinghua.edu.cn/simple")
+        }
+        .\runtime\python.exe -m pip @preInstallArgs
     }
     $PYTHON_EXEC = '.\runtime\python.exe'
 }
@@ -91,7 +99,18 @@ else {
 # --- 3. Requirements ---
 if (-not $skipInstall) {
     Write-Host "[Resona] Installing dependencies using $PYTHON_EXEC ..."
-    & $PYTHON_EXEC -m pip install -r requirements.txt
+    $pipArgs = @("install", "-r", "requirements.txt", "--no-warn-script-location")
+    
+
+    if ($mode -eq '3') {
+        $pipArgs += "--only-binary=:all:"
+    }
+    
+    if ($useMirror -eq 'Y' -or $useMirror -eq 'y') {
+        $pipArgs += @("-i", "https://pypi.tuna.tsinghua.edu.cn/simple")
+    }
+
+    & $PYTHON_EXEC -m pip @pipArgs
 }
 
 # --- 4. User Choice Collection ---
