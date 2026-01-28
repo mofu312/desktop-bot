@@ -6,6 +6,8 @@ $PYTHON_EMBED_URL = 'https://www.python.org/ftp/python/3.12.3/python-3.12.3-embe
 $PIP_GET_URL = 'https://bootstrap.pypa.io/get-pip.py'
 $SOVITS_URL = 'https://huggingface.co/datasets/JodieRuth/test123/resolve/main/GPT-SoVITS-v2pro-20250604.zip'
 $PACK_URL = 'https://huggingface.co/datasets/JodieRuth/test1/resolve/main/Resona_Default.zip'
+# External Dependency: SenseVoiceSmall (by Alibaba FunASR)
+# Distribution & Conversion by k2-fsa/sherpa-onnx (Apache-2.0)
 $STT_URL = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2'
 
 $DISCLAIMER = @'

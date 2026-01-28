@@ -20,7 +20,7 @@ Converts text to speech.
 
 ## 3. STT Module (`stt_backend.py`)
 Handles speech recognition.
-- **SenseVoice Engine**: Uses the offline SenseVoice model for high-speed and accurate recognition.
+- **SenseVoice Engine**: Uses the offline SenseVoice model for high-speed and accurate recognition. The `setup.ps1` installation script in this project downloads and uses the SenseVoiceSmall speech recognition model developed and open-sourced by Alibaba Group (FunASR), following the FunASR Model License 1.1. This script uses the ONNX converted version provided by the k2-fsa / sherpa-onnx project.
 - **Voice Activity Detection (VAD)**: Automatically stops recording and starts recognition after a period of silence.
 - **Hotkey Binding**: Supports global hotkeys (default `Alt+Q`) to trigger voice interaction.
 

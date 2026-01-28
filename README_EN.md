@@ -18,6 +18,7 @@ Please obtain resource packs compatible with this program on your own.
 - **Inspiration**: Parts of the code in this project are referenced from [luna-sama](https://github.com/annali07/luna-sama).
 - **Core Technology**: Designed specifically for interaction with [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS). Compatibility is only guaranteed for version `v2pro-20250604` and v2Pro models. If you need to train custom model weights, please use the corresponding version.
 - **Environment**: The installation script includes a streamlined SoVITS runtime environment (distributed under the MIT license) to lower the barrier to entry.
+- **Speech Recognition Component**: The `setup.ps1` installation script in this project downloads and uses the SenseVoiceSmall speech recognition model developed and open-sourced by Alibaba Group (FunASR), following the FunASR Model License 1.1. This script uses the ONNX converted version provided by the k2-fsa / sherpa-onnx project.
 - **Project Focus**: Focused on a high-efficiency, lightweight dialogue experience. There are currently no plans to add Live2D support, real-time screen recognition, or complex favorability systems.
 
 ## 📚 Detailed Documentation

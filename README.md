@@ -18,6 +18,7 @@
 - **灵感来源**：本项目部分代码参考自 [luna-sama](https://github.com/annali07/luna-sama)。
 - **核心技术**：专为与 [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) 交互设计，只测试了 `v2pro-20250604` 版本与v2Pro模型版本，不保证其他版本的兼容性。如果您需要训练模型权重以配合本项目使用，尽可能使用对应版本。
 - **关于环境**：本项目提供的安装脚本集成了精简的 SoVITS 运行时环境（基于 MIT 协议），旨在降低部署门槛。
+- **语音识别组件**：项目中的 `setup.ps1` 安装脚本下载并使用的语音识别模型 SenseVoiceSmall 是由 Alibaba Group (FunASR) 开发并开源的，遵循 FunASR Model License 1.1。 该脚本使用了由 k2-fsa / sherpa-onnx 项目提供的 ONNX 转换版本。
 - **功能侧重**：专注于高效、轻量的对话体验，暂不计划加入 Live2D 演出、实时屏幕识别或复杂的好感度系统。
 
 ## 📚 详细文档
