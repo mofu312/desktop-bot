@@ -14,7 +14,7 @@ class WindowInfo:
         self.process_name = process_name.lower(); self.rect = rect; self.url = url
 class BehaviorMonitor(QThread):
     fullscreen_status_changed = Signal(bool)
-    trigger_matched = Signal(list) 
+    trigger_matched = Signal(list)
     def __init__(self, config_manager, controller):
         super().__init__()
         self.config = config_manager
@@ -23,18 +23,49 @@ class BehaviorMonitor(QThread):
         self.running = True
         self.triggers = []
         self.app_start_time = time.time()
-        self.global_history = {} 
-        self.trigger_counts = {} 
+        self.global_history = {}
+        self.trigger_counts = {}
         self.pid_history = {}
-        self.triggered_pids = set() 
-        self.rule_hit_states = {}   
+        self.triggered_pids = set()
+        self.rule_hit_states = {}
         self.last_cycle_idle = 0.0
         self.is_fullscreen = False
         self.is_first_run = True
         self.last_clip_text = self._get_clipboard()
-        self.last_music_title = "" 
+        self.last_music_title = ""
         self._last_mock_data = {}
+        self.plugin_status_cache = {}
         self.load_triggers()
+
+    def _poll_plugins(self):
+        pm = self.config.pack_manager
+        if not self.config.plugins_enabled:
+            self.plugin_status_cache = {}
+            return
+
+        if not hasattr(pm, 'loaded_plugins'):
+            return
+
+        current_time = time.time()
+        if not hasattr(self, '_last_plugin_log_time'):
+            self._last_plugin_log_time = 0
+
+        for pid, module in pm.loaded_plugins.items():
+            try:
+                if hasattr(module, "check_status"):
+                    result = module.check_status()
+                    self.plugin_status_cache[pid] = result
+
+                    prev_status = getattr(self, '_prev_plugin_status', {}).get(pid)
+                    if prev_status != result or (current_time - self._last_plugin_log_time) > 60:
+                        if result[0]:
+                            logging.info(f"[Behavior] 插件状态: {pid} = {result[1]}")
+                        self._prev_plugin_status = {**getattr(self, '_prev_plugin_status', {}), pid: result}
+                        self._last_plugin_log_time = current_time
+            except Exception as e:
+                logging.error(f"[Behavior] Plugin {pid} check failed: {e}")
+                self.plugin_status_cache[pid] = (False, "error", 0.0)
+
     def load_triggers(self):
         trigger_path = self.config.pack_manager.get_path("logic", "triggers")
         if trigger_path and trigger_path.exists():
@@ -57,14 +88,17 @@ class BehaviorMonitor(QThread):
             time.sleep(self.config.behavior_interval)
     def _perform_checks(self, is_startup=False):
         now = time.time()
+        self._poll_plugins()
+
         if self.config.debug_trigger:
             mock_path = self.project_root / "TEMP" / "mock_data.json"
             if mock_path.exists():
                 try:
                     with open(mock_path, "r", encoding="utf-8") as f:
                         m = json.load(f)
-                    
+
                     if m == self._last_mock_data:
+                        logging.debug("[Behavior] Mock 数据无变化，跳过检查")
                         return
 
                     is_fs = m.get("is_fullscreen", False)
@@ -84,7 +118,7 @@ class BehaviorMonitor(QThread):
 
                     clip_text = m.get("clip_text", "")
                     clip_changed_text = clip_text if clip_text != self._last_mock_data.get("clip_text") else ""
-                    
+
                     curr_music = m.get("music_title", "")
                     music_changed_text = curr_music if curr_music != self._last_mock_data.get("music_title") else ""
 
@@ -92,12 +126,20 @@ class BehaviorMonitor(QThread):
 
                     hw_stats = {"cpu_temp": m.get("cpu_temp"), "gpu_temp": m.get("gpu_temp"), "cpu_usage": m.get("cpu_usage"), "gpu_usage": m.get("gpu_usage")}
                     win_info = WindowInfo(0, 0, m.get("win_title"), m.get("win_pname"), (0,0,0,0), m.get("win_url"))
-                    
-                    self._process_rule_matching(now, win_info, float(m.get("idle_sec", 0)), hw_stats, clip_text, m.get("weather", {}), is_startup, m.get("date"), m.get("time"), 
+
+                    logging.debug(f"[Behavior] 使用 mock 数据检查: plugins={m.get('plugins', {})}")
+                    self._process_rule_matching(now, win_info, float(m.get("idle_sec", 0)), hw_stats, clip_text, m.get("weather", {}), is_startup, m.get("date"), m.get("time"),
                                               clip_changed=clip_changed_text, music_title=curr_music, music_changed=music_changed_text)
                     self.last_clip_text = clip_text
-                    return 
-                except: pass
+
+                    if "plugins" in m:
+                        for pid, vals in m["plugins"].items():
+                            self.plugin_status_cache[pid] = tuple(vals)
+                            logging.debug(f"[Behavior] Mock 插件状态: {pid} = {vals}")
+                    return
+                except Exception as e:
+                    logging.error(f"[Behavior] Mock 数据读取失败: {e}")
+
         try:
             current_pids = {}
             for p in psutil.process_iter(['name', 'pid', 'create_time']):
@@ -122,7 +164,7 @@ class BehaviorMonitor(QThread):
                 if fs != self.is_fullscreen:
                     self.is_fullscreen = fs
                     self.fullscreen_status_changed.emit(fs)
-            self._process_rule_matching(now, win_info, idle_time, hw_stats, curr_clip, weather, is_startup, 
+            self._process_rule_matching(now, win_info, idle_time, hw_stats, curr_clip, weather, is_startup,
                                       clip_changed=clip_changed_text, music_title=curr_music, music_changed=music_changed_text)
             self.last_cycle_idle = idle_time
             self.last_clip_text = curr_clip
@@ -151,7 +193,7 @@ class BehaviorMonitor(QThread):
                 self._last_any_trigger_time = now
                 self.trigger_counts[gid] = self.trigger_counts.get(gid, 0) + 1
                 self.trigger_matched.emit(rule.get("actions", []))
-                break 
+                break
     def _check_recursive_logic(self, node, win, idle, recovery, hw, ui, clip, weather, rid, m_date, m_time, clip_changed, music_title, music_changed, path="root") -> bool:
         logic = node.get("logic", "AND").upper()
         conds = node.get("conditions", [])
@@ -194,7 +236,7 @@ class BehaviorMonitor(QThread):
             if targets: res, pids = True, targets
         elif t == "clip_match":
             in_mock = m_date is not None
-            target_text = clip_changed if not in_mock else clip 
+            target_text = clip_changed if not in_mock else clip
             res = any(kw.lower() in target_text.lower() for kw in c.get("keywords", [])) if target_text else False
         elif t == "music_match":
             in_mock = m_date is not None
@@ -212,6 +254,40 @@ class BehaviorMonitor(QThread):
         elif t == "idle_recovery": res = recovery > c.get("sec", 0)
         elif t == "idle_duration": res = idle > c.get("sec", 0)
         elif t == "fullscreen": res = self.is_fullscreen
+        elif t == "plugin_check" or (hasattr(self.config.pack_manager, 'plugin_trigger_map') and t in self.config.pack_manager.plugin_trigger_map):
+
+            plugin_map = getattr(self.config.pack_manager, 'plugin_trigger_map', {})
+            pid = c.get("plugin_id") or plugin_map.get(t)
+            if pid in self.plugin_status_cache:
+                status = self.plugin_status_cache[pid]
+                res = True
+                if t == "plugin_check":
+                    if "expect_bool" in c:
+                        res = res and (status[0] == c["expect_bool"])
+                    if "match_text" in c:
+                        res = res and (c["match_text"].lower() in status[1].lower())
+                    if "gt_value" in c:
+                        res = res and (status[2] > c["gt_value"])
+                    if "lt_value" in c:
+                        res = res and (status[2] < c["lt_value"])
+                else:
+
+                    res = status[0]
+                if res:
+                    logging.info(f"[Behavior] 插件触发: {t} -> {pid}, status={status}")
+            else:
+                res = False
+        elif t == "is_machine_explosion":
+
+            plugin_map = getattr(self.config.pack_manager, 'plugin_trigger_map', {})
+            pid = plugin_map.get(t)
+            if pid in self.plugin_status_cache:
+                status = self.plugin_status_cache[pid]
+                res = status[0]
+                if res:
+                    logging.info(f"[Behavior] 检测到机器爆炸: {status}")
+            else:
+                res = False
         elif t == "date_match":
             d = m_date if m_date else datetime.now().strftime("%m-%d")
             res = d == c.get("date", "")
@@ -232,9 +308,17 @@ class BehaviorMonitor(QThread):
     def _get_window_info(self, hwnd) -> Optional[WindowInfo]:
         if not hwnd: return None
         pid = ctypes.c_ulong()
-        ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        try:
+            ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        except (OverflowError, ValueError) as e:
+            logging.warning(f"[Behavior] GetWindowThreadProcessId 失败: {e}")
+            return None
         try:
             p = psutil.Process(pid.value); pname = p.name().lower()
+        except (psutil.NoSuchProcess, psutil.AccessDenied, OverflowError) as e:
+            logging.warning(f"[Behavior] Process 查询失败: {e}")
+            return None
+        try:
             length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
             buff = ctypes.create_unicode_buffer(length + 1)
             ctypes.windll.user32.GetWindowTextW(hwnd, buff, length + 1)
@@ -284,16 +368,22 @@ class BehaviorMonitor(QThread):
             return pyperclip.paste() or ""
         except: return ""
     def _is_fullscreen(self, info: WindowInfo) -> bool:
-        sw = ctypes.windll.user32.GetSystemMetrics(0); sh = ctypes.windll.user32.GetSystemMetrics(1)
-        ww, wh = info.rect[2]-info.rect[0], info.rect[3]-info.rect[1]
-        return (ww >= sw and wh >= sh) if info.process_name not in ["explorer.exe", "taskbar"] else False
+        try:
+            sw = ctypes.windll.user32.GetSystemMetrics(0); sh = ctypes.windll.user32.GetSystemMetrics(1)
+            ww, wh = info.rect[2]-info.rect[0], info.rect[3]-info.rect[1]
+            return (ww >= sw and wh >= sh) if info.process_name not in ["explorer.exe", "taskbar"] else False
+        except (OverflowError, ValueError):
+            return False
     def _get_cloudmusic_title(self) -> str:
         if not self.config.monitor_music: return ""
         title = ""
         def callback(hwnd, _):
             nonlocal title
             pid = ctypes.c_ulong()
-            ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            try:
+                ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            except (OverflowError, ValueError):
+                return True
             try:
                 p = psutil.Process(pid.value)
                 if p.name().lower() == "cloudmusic.exe":
@@ -304,7 +394,7 @@ class BehaviorMonitor(QThread):
                         t = buff.value
                         if t and " - " in t:
                             title = t
-                            return False 
+                            return False
             except: pass
             return True
         EnumWindows = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_int, ctypes.c_int)

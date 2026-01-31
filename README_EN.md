@@ -72,6 +72,10 @@ This project includes several built-in tools for developers and resource pack cr
 - **Sprite Organizer** (`sprite_organizer.py`): Batch renames and manages sprite assets and generates `sum.json`.
 - Refer to the format in the default resource pack to create your own.
 
+## 🔌 Plugin System
+
+This program has a plugin system that allows you to load external .py files from resource packs to customize trigger and action interactions for this program. Note: Only load plugins you trust.
+
 ## ⚙️ Trigger System Explained
 
 Using `trigger_editor.py`, you can configure highly personalized reaction logic. Current capabilities include:

@@ -1,5 +1,7 @@
 import json
 import os
+import sys
+import importlib.util
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -10,6 +12,9 @@ class PackManager:
         self.active_pack_id = "Resona_Default"
         self.pack_data: Dict[str, Any] = {}
         self.id_map: Dict[str, str] = {}
+        self.loaded_plugins: Dict[str, Any] = {}
+        self.plugin_trigger_map: Dict[str, str] = {}
+        self.plugin_action_map: Dict[str, str] = {}
         self._scan_packs()
 
     def _scan_packs(self):
@@ -32,6 +37,63 @@ class PackManager:
         folder_name = self.id_map.get(pack_id, pack_id)
         self.active_pack_id = folder_name
         self._load_pack_manifest()
+        self._unload_plugins()
+
+    def _unload_plugins(self):
+        self.loaded_plugins.clear()
+        self.plugin_trigger_map.clear()
+        self.plugin_action_map.clear()
+
+    def load_plugins(self, enabled: bool):
+        if not enabled:
+            self._unload_plugins()
+            return
+
+        plugin_dir_rel = self.pack_data.get("logic", {}).get("plugins")
+        if not plugin_dir_rel:
+            return
+
+        plugin_dir = self.packs_dir / self.active_pack_id / plugin_dir_rel
+        if not plugin_dir.exists() or not plugin_dir.is_dir():
+            return
+
+        print(f"[PackManager] Loading plugins from {plugin_dir}")
+        for f in plugin_dir.glob("*.py"):
+            try:
+                module_name = f"resona_plugin_{self.active_pack_id}_{f.stem}"
+                spec = importlib.util.spec_from_file_location(module_name, f)
+                if spec and spec.loader:
+                    module = importlib.util.module_from_spec(spec)
+                    sys.modules[module_name] = module
+                    spec.loader.exec_module(module)
+
+                    has_info = hasattr(module, "INFO")
+                    print(f"[PackManager] 检查插件 {f.name}: hasattr(INFO)={has_info}")
+                    if has_info:
+                        print(f"[PackManager] INFO 内容: {module.INFO}")
+
+                    if has_info:
+                        plugin_id = module.INFO.get("id")
+                        print(f"[PackManager] plugin_id: {plugin_id}")
+                        if plugin_id:
+                            self.loaded_plugins[plugin_id] = module
+                            triggers = module.INFO.get("triggers", [])
+                            print(f"[PackManager] triggers: {triggers}")
+                            for t in triggers:
+                                t_type = t.get("type")
+                                print(f"[PackManager] 处理 trigger: type={t_type}")
+                                if t_type:
+                                    self.plugin_trigger_map[t_type] = plugin_id
+                                    print(f"[PackManager] 已注册 trigger: {t_type} -> {plugin_id}")
+                            for a in module.INFO.get("actions", []):
+                                a_type = a.get("type")
+                                if a_type: self.plugin_action_map[a_type] = plugin_id
+                            print(f"[PackManager] Loaded plugin: {plugin_id}")
+                            print(f"[PackManager] 当前 plugin_trigger_map: {self.plugin_trigger_map}")
+            except Exception as e:
+                print(f"[PackManager] Failed to load plugin {f.name}: {e}")
+                import traceback
+                traceback.print_exc()
 
     def _load_pack_manifest(self):
         manifest_path = self.packs_dir / self.active_pack_id / "pack.json"
@@ -47,13 +109,13 @@ class PackManager:
     def get_info(self, key: str, default: Any = None) -> Any:
         if not self.pack_data:
             self._load_pack_manifest()
-        
+
         if key in self.pack_data:
             return self.pack_data[key]
-            
+
         if "character" in self.pack_data:
             return self.pack_data["character"].get(key, default)
-            
+
         return default
 
     def get_path(self, category: str, key: str = None) -> Optional[Path]:
@@ -65,7 +127,7 @@ class PackManager:
             if category == "logic":
                 configs = self.pack_data.get("logic", {}).get("interaction_configs", {})
                 if key == "triggers": rel_path = configs.get("triggers")
-                elif key == "prompts": 
+                elif key == "prompts":
                     prompts = self.pack_data.get("logic", {}).get("prompts", [])
                     if prompts: rel_path = prompts[0].get("path")
                 elif key == "error_config": rel_path = configs.get("error_config")
@@ -79,7 +141,7 @@ class PackManager:
                 elif key == "error_dir": rel_path = audio_cfg.get("error_audio_dir")
             elif category == "model":
                 rel_path = self.pack_data.get("character", {}).get("sovits_model", {}).get(key)
-            
+
             if rel_path:
                 p = Path(rel_path)
                 return p if p.is_absolute() else pack_root / rel_path

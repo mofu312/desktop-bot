@@ -1,5 +1,7 @@
 import sys
 import json
+import importlib.util
+import configparser
 from pathlib import Path
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QListWidget, QPushButton, QLabel, QGroupBox, QLineEdit, 
@@ -55,7 +57,13 @@ TRANSLATIONS = {
     "emotion": "情感标签",
     "voice_file": "音频文件名(可选)",
     "pos": "位置(top_left/bottom_right)",
-    "branches": "分支列表(JSON)"
+    "branches": "分支列表(JSON)",
+    "plugin_id": "插件ID",
+    "expect_bool": "期望布尔值",
+    "match_text": "匹配文本(可选)",
+    "gt_value": "数值大于(可选)",
+    "lt_value": "数值小于(可选)",
+    "params": "插件参数列表"
 }
 
 EMOTION_TAGS = [
@@ -77,9 +85,13 @@ class TriggerEditor(QMainWindow):
         self.active_pack_id = ""
         self.editing_item_ref = None
         self.editing_tree_item_ref = None
+        self._editing_is_action = None
+        self.dynamic_plugin_info = {}
         self.init_ui()
         self.setStatusBar(QStatusBar(self))
         self.scan_packs()
+        self.scan_plugins()
+        self.refresh_type_combos()
         self.load_data()
 
     def init_ui(self):
@@ -116,12 +128,12 @@ class TriggerEditor(QMainWindow):
         self.logic_box.currentTextChanged.connect(lambda t: self._update_base_val("logic", t))
         self.prob_spin = QDoubleSpinBox(); self.prob_spin.setRange(0.0, 1.0); self.prob_spin.setSingleStep(0.05)
         self.prob_spin.valueChanged.connect(lambda v: self._update_base_val("probability", v))
-        self.cd_spin = QSpinBox(); self.cd_spin.setRange(0, 3600)
+        self.cd_spin = QSpinBox(); self.cd_spin.setRange(0, 99999)
         self.cd_spin.valueChanged.connect(lambda v: self._update_base_val("cooldown", v))
-        self.max_spin = QSpinBox(); self.max_spin.setRange(0, 9999)
+        self.max_spin = QSpinBox(); self.max_spin.setRange(0, 99999)
         self.max_spin.valueChanged.connect(lambda v: self._update_base_val("max_triggers", v))
-        self.startup_cb = QCheckBox("仅启动时触发")
-        self.startup_cb.toggled.connect(lambda b: self._update_base_val("startup_only", b))
+        self.enabled_cb = QCheckBox("启用此触发器")
+        self.enabled_cb.toggled.connect(lambda b: self._update_base_val("enabled", b))
         f1.addRow("ID:", self.id_edit)
         f1.addRow("规则描述:", self.desc_edit)
         f1.addRow("判定逻辑:", self.logic_box)
@@ -129,6 +141,7 @@ class TriggerEditor(QMainWindow):
         f1.addRow("冷却间隔:", self.cd_spin)
         f1.addRow("每日上限:", self.max_spin)
         f1.addRow(self.startup_cb)
+        f1.addRow(self.enabled_cb)
         mid_panel.addWidget(base_gb)
         cond_gb = QGroupBox("2. 触发判定条件 (Conditions)")
         cv = QVBoxLayout(cond_gb)
@@ -137,8 +150,6 @@ class TriggerEditor(QMainWindow):
         cv.addWidget(self.cond_tree)
         c_row = QHBoxLayout()
         self.c_type = QComboBox()
-        for k in sorted(COND_TYPES.keys()):
-            self.c_type.addItem(COND_TYPES[k]["label"], k)
         btn_add_c = QPushButton("添加条件"); btn_add_c.clicked.connect(self.add_condition)
         btn_del_c = QPushButton("删除选中"); btn_del_c.clicked.connect(self.delete_condition)
         c_row.addWidget(self.c_type); c_row.addWidget(btn_add_c); c_row.addWidget(btn_del_c)
@@ -151,10 +162,6 @@ class TriggerEditor(QMainWindow):
         av.addWidget(self.act_tree)
         a_row = QHBoxLayout()
         self.a_type = QComboBox()
-        for k in sorted(ACT_TYPES.keys()):
-            val = ACT_TYPES[k]
-            label = val.get("label", k) if isinstance(val, dict) else val
-            self.a_type.addItem(label, k)
         btn_add_a = QPushButton("插入动作"); btn_add_a.clicked.connect(self.add_action)
         btn_del_a = QPushButton("删除选中"); btn_del_a.clicked.connect(self.delete_action)
         a_row.addWidget(self.a_type); a_row.addWidget(btn_add_a); a_row.addWidget(btn_del_a)
@@ -172,6 +179,61 @@ class TriggerEditor(QMainWindow):
         self.prop_layout.addStretch()
         layout.addWidget(self.prop_panel, 1)
 
+    def scan_plugins(self):
+        self.dynamic_plugin_info = {}
+        config = configparser.ConfigParser(interpolation=None)
+        config.read(self.project_root / "config.cfg", encoding="utf-8")
+        if not config.getboolean("General", "plugins_enabled", fallback=False):
+            return
+
+        pack_json_path = self.project_root / "packs" / self.active_pack_id / "pack.json"
+        if not pack_json_path.exists(): return
+        
+        with open(pack_json_path, "r", encoding="utf-8") as f:
+            pack_data = json.load(f)
+        
+        plugin_dir_rel = pack_data.get("logic", {}).get("plugins")
+        if not plugin_dir_rel: return
+        
+        plugin_dir = self.project_root / "packs" / self.active_pack_id / plugin_dir_rel
+        if not plugin_dir.exists(): return
+
+        for f in plugin_dir.glob("*.py"):
+            try:
+                spec = importlib.util.spec_from_file_location(f.stem, f)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                if hasattr(module, "INFO"):
+                    info = module.INFO
+                    pid = info.get("id")
+                    if pid:
+                        self.dynamic_plugin_info[pid] = info
+            except: pass
+
+    def refresh_type_combos(self):
+        self.c_type.clear()
+        for k in sorted(COND_TYPES.keys()):
+            self.c_type.addItem(COND_TYPES[k]["label"], k)
+        
+        self.c_type.addItem("🧩 通用插件状态检查", "plugin_check")
+        for pid, info in self.dynamic_plugin_info.items():
+            for t in info.get("triggers", []):
+                ttype = t.get("type")
+                label = f"🧩 [{info.get('name', pid)}] {t.get('label', ttype)}"
+                self.c_type.addItem(label, ttype)
+
+        self.a_type.clear()
+        for k in sorted(ACT_TYPES.keys()):
+            val = ACT_TYPES[k]
+            label = val.get("label", k) if isinstance(val, dict) else val
+            self.a_type.addItem(label, k)
+        
+        for pid, info in self.dynamic_plugin_info.items():
+            for act in info.get("actions", []):
+                atype = act.get("type")
+                label = f"🧩 [{info.get('name', pid)}] {act.get('label', atype)}"
+                self.a_type.addItem(label, atype)
+
     def scan_packs(self):
         packs_dir = self.project_root / "packs"
         if not packs_dir.exists(): return
@@ -187,6 +249,8 @@ class TriggerEditor(QMainWindow):
     def on_pack_changed(self, pack_id):
         if not pack_id: return
         self.active_pack_id = pack_id
+        self.scan_plugins()
+        self.refresh_type_combos()
         self.load_data()
 
     def load_data(self):
@@ -195,15 +259,44 @@ class TriggerEditor(QMainWindow):
         self.current_triggers = []
         if path.exists():
             with open(path, "r", encoding="utf-8") as f: self.current_triggers = json.load(f)
+        else:
+            # 如果文件不存在，创建默认结构
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.current_triggers = []
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(self.current_triggers, f, indent=4, ensure_ascii=False)
         self.refresh_list()
         self.cond_tree.clear(); self.act_tree.clear()
 
     def save_data(self):
         if not self.active_pack_id: return
         path = self.project_root / "packs" / self.active_pack_id / "logic" / "triggers.json"
+        # 确保目录存在
+        path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(self.current_triggers, f, indent=4, ensure_ascii=False)
         self.statusBar().showMessage(f"已成功保存至 {self.active_pack_id}", 3000)
+
+    def auto_save(self):
+        """自动保存功能，每次修改后立即保存"""
+        if not self.active_pack_id:
+            print("自动保存失败: active_pack_id 为空")
+            return
+        path = self.project_root / "packs" / self.active_pack_id / "logic" / "triggers.json"
+        print(f"正在尝试保存到: {path}")
+        print(f"当前触发器数据: {self.current_triggers}")
+        try:
+            # 确保目录存在
+            path.parent.mkdir(parents=True, exist_ok=True)
+            print(f"目录已确保存在: {path.parent}")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(self.current_triggers, f, indent=4, ensure_ascii=False)
+            print(f"数据已成功保存到: {path}")
+            print(f"保存的数据长度: {len(self.current_triggers)}")
+        except Exception as e:
+            print(f"自动保存失败: {e}")
+            import traceback
+            traceback.print_exc()
 
     def refresh_list(self):
         self.list_widget.clear()
@@ -220,6 +313,7 @@ class TriggerEditor(QMainWindow):
         self.cd_spin.setValue(data.get("cooldown", 5))
         self.max_spin.setValue(data.get("max_triggers", 9999))
         self.startup_cb.setChecked(data.get("startup_only", False))
+        self.enabled_cb.setChecked(data.get("enabled", True))
         self.cond_tree.clear()
         self._render_recursive_conds(data.get("conditions", []), self.cond_tree.invisibleRootItem())
         self.cond_tree.expandAll()
@@ -227,133 +321,370 @@ class TriggerEditor(QMainWindow):
         self._render_acts(data.get("actions", []), self.act_tree.invisibleRootItem())
         self.act_tree.expandAll()
 
+        # 清除编辑引用
+        self.editing_item_ref = None
+        self.editing_tree_item_ref = None
+        self._editing_is_action = None
+        while self.prop_form.count():
+            w = self.prop_form.takeAt(0).widget()
+            if w: w.deleteLater()
+
     def add_trigger(self):
-        self.current_triggers.append({"id": "new_trigger", "logic": "AND", "conditions": [], "actions": []})
+        self.current_triggers.append({
+            "id": "new_trigger",
+            "enabled": True,
+            "description": "",
+            "logic": "AND",
+            "probability": 1.0,
+            "cooldown": 60,
+            "max_triggers": 9999,
+            "one_shot_per_pid": False,
+            "conditions": [],
+            "actions": []
+        })
         self.refresh_list()
+        self.auto_save()  # 自动保存
 
     def delete_trigger(self):
         if self.selected_index >= 0:
             del self.current_triggers[self.selected_index]
             self.refresh_list()
+            self.auto_save()  # 自动保存
 
     def _render_recursive_conds(self, conds, parent):
         for c in conds:
             if "logic" in c:
                 item = QTreeWidgetItem(parent, [f"【逻辑组】{c['logic']}", ""])
                 item.setData(0, Qt.ItemDataRole.UserRole, c)
+                print(f"渲染条件组: {c}, ID: {id(c)}")
                 self._render_recursive_conds(c.get("conditions", []), item)
             else:
                 label = COND_TYPES.get(c["type"], {}).get("label", c["type"])
+                if c["type"] == "plugin_check":
+                    label = "🧩 通用插件状态检查"
+                else:
+                    for pid, info in self.dynamic_plugin_info.items():
+                        for t in info.get("triggers", []):
+                            if t.get("type") == c["type"]:
+                                label = f"🧩 [{info.get('name', pid)}] {t.get('label', c['type'])}"
+                                break
                 item = QTreeWidgetItem(parent, [label, str(c)])
                 item.setData(0, Qt.ItemDataRole.UserRole, c)
+                print(f"渲染条件: {c}, ID: {id(c)}")
 
     def _render_acts(self, actions, parent):
         for a in actions:
             raw_type = a["type"]
             label_def = ACT_TYPES.get(raw_type, raw_type)
-            # If label_def is a dict (like our new fade_out/lock_interaction), get "label"
             label = label_def.get("label", raw_type) if isinstance(label_def, dict) else label_def
-            
+
+            for pid, info in self.dynamic_plugin_info.items():
+                for pact in info.get("actions", []):
+                    if pact.get("type") == raw_type:
+                        label = f"🧩 [{info.get('name', pid)}] {pact.get('label', raw_type)}"
+                        break
+
             item = QTreeWidgetItem(parent, [label, str(a)])
             item.setData(0, Qt.ItemDataRole.UserRole, a)
+            print(f"渲染动作: {a}, ID: {id(a)}")
 
     def on_cond_clicked(self, item):
         data = item.data(0, Qt.ItemDataRole.UserRole)
-        self._build_prop_editor(data, item, COND_TYPES)
+        self._build_prop_editor(data, item, COND_TYPES, is_action=False)
 
     def on_act_clicked(self, item):
         data = item.data(0, Qt.ItemDataRole.UserRole)
-        self._build_prop_editor(data, item, TRANSLATIONS)
+        self._build_prop_editor(data, item, TRANSLATIONS, is_action=True)
 
-    def _build_prop_editor(self, data, tree_item, defs):
+    def _build_prop_editor(self, data, tree_item, defs, is_action=True):
         while self.prop_form.count():
             w = self.prop_form.takeAt(0).widget()
             if w: w.deleteLater()
-        self.editing_item_ref = data; self.editing_tree_item_ref = tree_item
+
+        # 为确保修改能正确保存，我们需要记录当前编辑项的位置信息
+        # 通过在树项中存储索引信息来追踪数据位置
+        self.editing_item_ref = data
+        self.editing_tree_item_ref = tree_item
+        self._editing_is_action = is_action
+
         item_type = data.get("type", data.get("logic"))
-        
-        # Determine fields definition source
+
         def_source = defs.get(item_type)
         if not def_source and item_type in ACT_TYPES:
              def_source = ACT_TYPES.get(item_type)
-             
-        fields = def_source.get("fields", []) if isinstance(def_source, dict) else []
-        
+
+        fields = []
+        if item_type == "plugin_check":
+            fields = ["plugin_id", "expect_bool", "match_text", "gt_value", "lt_value"]
+            if "plugin_id" not in data: data["plugin_id"] = ""
+            if "expect_bool" not in data: data["expect_bool"] = True
+        elif not def_source:
+            is_plugin_trigger = False
+            for pid, info in self.dynamic_plugin_info.items():
+                if any(t.get("type") == item_type for t in info.get("triggers", [])):
+                    is_plugin_trigger = True
+                    break
+
+            if is_plugin_trigger:
+                for pid, info in self.dynamic_plugin_info.items():
+                    for trig in info.get("triggers", []):
+                        if trig.get("type") == item_type:
+                            fields = trig.get("fields", [])
+                            if not fields and "params" in trig:
+                                fields = trig["params"]
+                            break
+            else:
+                is_plugin_action = False
+                for pid, info in self.dynamic_plugin_info.items():
+                    for act in info.get("actions", []):
+                        if act.get("type") == item_type:
+                            is_plugin_action = True
+                            fields = act.get("fields", [])
+                            if not fields and "params" in act:
+                                fields = act["params"]
+                            break
+
+                if not is_plugin_action:
+                    fields = [key for key in data.keys() if key != "type"]
+                else:
+                    if not fields:
+                        fields = [key for key in data.keys() if key != "type"]
+        else:
+            fields = def_source.get("fields", []) if isinstance(def_source, dict) else []
+
+        # 为树项添加额外的用户数据，存储索引信息
+        # 获取当前项在父项中的索引
+        parent_item = tree_item.parent()
+        if parent_item:
+            # 子项索引
+            index_in_parent = parent_item.indexOfChild(tree_item)
+            # 获取父项的用户数据以确定它是条件组还是动作组
+            parent_data = parent_item.data(0, Qt.ItemDataRole.UserRole)
+            # 设置当前项的用户数据，包含索引信息
+            tree_item.setData(1, Qt.ItemDataRole.UserRole, {"index": index_in_parent, "parent_data": parent_data, "is_action": is_action})
+        else:
+            # 根级项，直接存储索引
+            root = tree_item.treeWidget().invisibleRootItem()
+            index_in_parent = root.indexOfChild(tree_item)
+            tree_item.setData(1, Qt.ItemDataRole.UserRole, {"index": index_in_parent, "parent_data": None, "is_action": is_action})
+
+        # 创建一个辅助函数来更新主数据结构
+        def update_main_data_structure_by_indices(key, value):
+            print(f"通过索引更新主数据结构: key={key}, value={value}")
+            # 获取树项中存储的索引信息
+            index_info = tree_item.data(1, Qt.ItemDataRole.UserRole)
+            if not index_info:
+                print("错误: 无法获取索引信息")
+                return
+
+            index = index_info["index"]
+            parent_data = index_info["parent_data"]
+            is_action = index_info["is_action"]
+
+            print(f"索引信息: index={index}, parent_data={parent_data}, is_action={is_action}")
+
+            # 如果有父数据，说明这是子项（嵌套条件）
+            if parent_data:
+                # 检查父数据是否在当前触发器中
+                for trig_idx, trigger in enumerate(self.current_triggers):
+                    # 检查父数据是否在条件列表中（作为逻辑组）
+                    if "conditions" in trigger:
+                        for cond_idx, condition in enumerate(trigger["conditions"]):
+                            if condition is parent_data:
+                                # 这是一个逻辑组，更新其子条件
+                                if "conditions" in condition and index < len(condition["conditions"]):
+                                    condition["conditions"][index][key] = value
+                                    print(f"更新嵌套条件[{trig_idx}][{cond_idx}][{index}]的{key}为{value}")
+                                    self.auto_save()
+                                    return
+            else:
+                # 这是根级条件或动作
+                if self.selected_index >= 0 and self.selected_index < len(self.current_triggers):
+                    trigger = self.current_triggers[self.selected_index]
+                    if is_action:
+                        # 更新动作
+                        if "actions" in trigger and index < len(trigger["actions"]):
+                            trigger["actions"][index][key] = value
+                            print(f"更新动作[{self.selected_index}][{index}]的{key}为{value}")
+                            self.auto_save()
+                            return
+                    else:
+                        # 更新条件
+                        if "conditions" in trigger and index < len(trigger["conditions"]):
+                            trigger["conditions"][index][key] = value
+                            print(f"更新条件[{self.selected_index}][{index}]的{key}为{value}")
+                            self.auto_save()
+                            return
+
+            print("警告: 未能根据索引找到要更新的数据")
+
+        # 为每个字段创建控件，并绑定到正确的数据更新函数
         for key in fields:
             val = data.get(key)
-            # Auto-fix bools that might be missing or None
             if key in ["only_new", "only_on_change"]:
                 if val is None: val = False
-                
+
             label = TRANSLATIONS.get(key, key)
             if key == "emotion":
                 combo = QComboBox()
                 combo.addItems(EMOTION_TAGS)
-                combo.setEditable(True) # Allow custom if needed, but provide list
+                combo.setEditable(True)
                 idx = combo.findText(str(val))
                 if idx >= 0: combo.setCurrentIndex(idx)
                 else: combo.setCurrentText(str(val) if val else EMOTION_TAGS[0])
-                combo.currentTextChanged.connect(lambda txt, k=key: self._update_val(k, txt))
+
+                def update_emotion(txt, k=key):
+                    update_main_data_structure_by_indices(k, txt)
+                    data[k] = txt  # 同时更新本地引用
+                    tree_item.setText(1, str(data))
+
+                combo.currentTextChanged.connect(update_emotion)
+                self.prop_form.addRow(f"{label}:", combo)
+            elif key == "plugin_id":
+                combo = QComboBox()
+                combo.addItems(list(self.dynamic_plugin_info.keys()))
+                combo.setCurrentText(str(val))
+
+                def update_plugin_id(txt, k=key):
+                    update_main_data_structure_by_indices(k, txt)
+                    data[k] = txt  # 同时更新本地引用
+                    tree_item.setText(1, str(data))
+
+                combo.currentTextChanged.connect(update_plugin_id)
                 self.prop_form.addRow(f"{label}:", combo)
             elif isinstance(val, bool):
                 cb = QCheckBox(); cb.setChecked(val)
-                cb.toggled.connect(lambda v, k=key: self._update_val(k, v))
+
+                def update_bool(v, k=key):
+                    update_main_data_structure_by_indices(k, v)
+                    data[k] = v  # 同时更新本地引用
+                    tree_item.setText(1, str(data))
+
+                cb.toggled.connect(update_bool)
                 self.prop_form.addRow(f"{label}:", cb)
+            elif key == "voice_file":
+                edit = QLineEdit(str(val) if val is not None else "")
+
+                def update_voice_file(txt, k=key):
+                    update_main_data_structure_by_indices(k, txt)
+                    data[k] = txt  # 同时更新本地引用
+                    tree_item.setText(1, str(data))
+
+                edit.textChanged.connect(update_voice_file)
+                self.prop_form.addRow(f"{label}:", edit)
             elif isinstance(val, list):
-                edit = QLineEdit(", ".join(val))
-                edit.textChanged.connect(lambda txt, k=key: self._update_val(k, [s.strip() for s in txt.split(",") if s.strip()]))
+                edit = QLineEdit(", ".join([str(x) for x in val]))
+
+                def update_list(txt, k=key):
+                    parsed_list = [s.strip() for s in txt.split(",") if s.strip()]
+                    update_main_data_structure_by_indices(k, parsed_list)
+                    data[k] = parsed_list  # 同时更新本地引用
+                    tree_item.setText(1, str(data))
+
+                edit.textChanged.connect(update_list)
                 self.prop_form.addRow(f"{label}:", edit)
             elif isinstance(val, (int, float)):
                 spin = QDoubleSpinBox() if isinstance(val, float) else QSpinBox()
                 spin.setRange(-9999, 9999); spin.setValue(val)
-                spin.valueChanged.connect(lambda v, k=key: self._update_val(k, v))
+
+                def update_number(v, k=key):
+                    update_main_data_structure_by_indices(k, v)
+                    data[k] = v  # 同时更新本地引用
+                    tree_item.setText(1, str(data))
+
+                spin.valueChanged.connect(update_number)
                 self.prop_form.addRow(f"{label}:", spin)
             else:
-                edit = QLineEdit(str(val))
-                edit.textChanged.connect(lambda txt, k=key: self._update_val(k, txt))
+                edit = QLineEdit(str(val) if val is not None else "")
+
+                def update_text(txt, k=key):
+                    update_main_data_structure_by_indices(k, txt)
+                    data[k] = txt  # 同时更新本地引用
+                    tree_item.setText(1, str(data))
+
+                edit.textChanged.connect(update_text)
                 self.prop_form.addRow(f"{label}:", edit)
 
     def _update_base_val(self, key, val):
+        print(f"更新基础值: key={key}, val={val}, selected_index={self.selected_index}")
         if self.selected_index >= 0:
+            print(f"更新前触发器[{self.selected_index}]: {self.current_triggers[self.selected_index]}")
             self.current_triggers[self.selected_index][key] = val
+            print(f"更新后触发器[{self.selected_index}]: {self.current_triggers[self.selected_index]}")
             if key == "id": self.refresh_list()
+            self.auto_save()  # 自动保存
+        else:
+            print("警告: selected_index 小于0，无法更新基础值")
 
-    def _update_val(self, key, val):
-        if self.editing_item_ref:
-            self.editing_item_ref[key] = val
-            self.editing_tree_item_ref.setText(1, str(self.editing_item_ref))
 
     def add_condition(self):
         if self.selected_index < 0: return
         new_c = {"type": self.c_type.currentData()}
         self.current_triggers[self.selected_index]["conditions"].append(new_c)
         self.on_trigger_selected(self.selected_index)
+        self.auto_save()  # 自动保存
 
     def add_action(self):
         if self.selected_index < 0: return
-        new_a = {"type": self.a_type.currentData()}
-        self.current_triggers[self.selected_index]["actions"].append(new_a)
-        self.on_trigger_selected(self.selected_index)
+        act_type = self.a_type.currentData()
+        new_a = {"type": act_type}
+
+        if act_type == "speak":
+            new_a["text"] = ""
+            new_a["emotion"] = EMOTION_TAGS[0]
+            new_a["voice_file"] = ""
+        elif act_type == "delay":
+            new_a["sec"] = 5
+        elif act_type == "move_to":
+            new_a["pos"] = "top_left"
+        elif act_type == "fade_out":
+            new_a["opacity"] = 0.5
+            new_a["sec"] = 1.0
+            new_a["hover_recovery"] = True
+        elif act_type == "lock_interaction":
+            new_a["sec"] = 5.0
+        elif act_type == "random_group":
+            new_a["branches"] = []
+
+        actions = self.current_triggers[self.selected_index]["actions"]
+        actions.append(new_a)
+
+        self.act_tree.clear()
+        self._render_acts(actions, self.act_tree.invisibleRootItem())
+        self.act_tree.expandAll()
+
+        root = self.act_tree.invisibleRootItem()
+        new_item = None
+        for i in range(root.childCount()):
+            child = root.child(i)
+            if child.data(0, Qt.ItemDataRole.UserRole) is new_a:
+                new_item = child
+                break
+
+        if new_item:
+            self.act_tree.setCurrentItem(new_item)
+            self.on_act_clicked(new_item)
+
+        self.auto_save()  # 自动保存
 
     def delete_condition(self):
         item = self.cond_tree.currentItem()
         if not item: return
         data = item.data(0, Qt.ItemDataRole.UserRole)
         parent_item = item.parent()
-        
+
         target_list = None
         if parent_item:
-            # Inside a logic group
             parent_data = parent_item.data(0, Qt.ItemDataRole.UserRole)
             target_list = parent_data.get("conditions")
         else:
-            # Root
             if self.selected_index >= 0:
                 target_list = self.current_triggers[self.selected_index]["conditions"]
-        
+
         if target_list is not None and data in target_list:
             target_list.remove(data)
             self.on_trigger_selected(self.selected_index)
+            self.auto_save()  # 自动保存
 
     def delete_action(self):
         item = self.act_tree.currentItem()
@@ -363,6 +694,7 @@ class TriggerEditor(QMainWindow):
         if data in target_list:
             target_list.remove(data)
             self.on_trigger_selected(self.selected_index)
+            self.auto_save()  # 自动保存
 
 if __name__ == "__main__":
     app = QApplication(sys.argv); ex = TriggerEditor(); ex.show(); sys.exit(app.exec())

@@ -24,6 +24,7 @@
         }
     },
     "logic": {
+        "plugins": "plugins",
         "prompts": [
             {
                 "id": "default",

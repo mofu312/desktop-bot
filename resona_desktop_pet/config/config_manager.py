@@ -139,6 +139,10 @@ class ConfigManager:
         return self.getboolean("General", "use_pack_settings", True)
 
     @property
+    def plugins_enabled(self) -> bool:
+        return self.getboolean("General", "plugins_enabled", False)
+
+    @property
     def tts_language(self) -> str:
         if self.use_pack_settings:
             return self.pack_manager.get_info("character", {}).get("tts_language", "ja")

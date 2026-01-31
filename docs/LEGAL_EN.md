@@ -65,14 +65,17 @@ The following actions remain strictly subject to CC BY-NC-SA 4.0 and require sep
 - **Link Endorsement**: External resource links included in installation scripts are provided by community contributors or as technical path demonstrations. This repository does not endorse, review, or store content pointed to by these links. URLs referenced in scripts are for network connectivity testing only and do not represent the author's confirmation of the content at those addresses.
 - **Autonomous Actions**: Operations such as file renaming and path mapping during script execution are the user's autonomous actions in their local environment. If copyright holders believe relevant links are infringing, please contact the third-party storage service provider. If confirmed, the author will remove the relevant example code upon receiving official notice.
 
-## 6. Compliance and Agreement Modification
+## 6. Plugin System and Third-Party Code
+- **Plugin Functionality**: This program features a plugin system that allows loading external .py files to customize triggers and actions. This feature is disabled by default. You should only obtain resource packages from trusted third-party sources. Do not enable the plugin system if you are unsure whether a file is harmful. The project owners shall not be held liable for any losses incurred due to malicious files after the plugin system is enabled.
+
+## 7. Compliance and Agreement Modification
 - **Legal Compliance**: When using this project to generate content, users should comply with local laws and regulations and must not use this project to create or disseminate false information or illegal content. If users engage in illegal activities using this project, they bear all consequences.
 - **General Engine**: This project is a general display engine. Its logical structure has no necessary connection with specific cultural symbols, fictional characters, or copyrighted IPs. Any resemblance is purely coincidental. Any names or identifiers displayed in the software are test placeholders, and users can define them freely. Any variable naming or folder names appearing in the code are due to the developer's personal habits or common technical naming conventions; any resemblance is purely coincidental.
 - **Rights Handling**: If rights holders believe that the code or documentation of this project infringes their rights, please provide proof of ownership via an Issue. The author will handle it within 72 hours of verification. The author cannot technically intervene in infringements caused by third-party resource packs prepared by users themselves.
 - **Agreement Modification**: The author reserves the right to modify this agreement and stop maintaining this project at any time. For users who violate this agreement, the author has the right to revoke their usage authorization and pursue relevant responsibilities.
 
-## 7. Governing Law and Jurisdiction
-- **Governing Law**: The formation, execution, interpretation, and dispute resolution of this agreement shall be governed by the laws of the People's Republic of China (excluding the laws of Hong Kong, Macau Special Administrative Regions, and Taiwan for the purposes of this agreement).
+## 8. Governing Law and Jurisdiction
+- **Governing Law**: This Agreement shall be governed by and construed in accordance with the laws of the People's Republic of China, excluding its conflict of laws principles.
 - **Jurisdiction**: If any dispute arises between you and the developer of this project (hereinafter referred to as the "Author") regarding the content or execution of this agreement, both parties shall first attempt to resolve it through friendly negotiation. If negotiation fails, you agree to submit the dispute to the people's court with jurisdiction over the Author's location.
 - **Severability**: If any provision of this agreement is held to be invalid or unenforceable for any reason, the remaining provisions shall remain valid and binding.
 

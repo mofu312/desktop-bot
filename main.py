@@ -37,12 +37,12 @@ def setup_dedicated_logger(name, file_path, level=logging.INFO):
     handler = logging.FileHandler(file_path, encoding="utf-8")
     handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
     logger.addHandler(handler)
-    logger.propagate = False 
+    logger.propagate = False
     return logger
 def exception_hook(exctype, value, tb):
     traceback.print_exception(exctype, value, tb)
     logging.error("Uncaught exception:", exc_info=(exctype, value, tb))
-    sys.exit(1)
+
 sys.excepthook = exception_hook
 sovits_logger = setup_dedicated_logger("SoVITS", sovits_log_file)
 llm_logger = setup_dedicated_logger("LLM", llm_log_file)
@@ -92,14 +92,15 @@ class ApplicationController(QObject):
         pm = self.config.pack_manager
         log(f"[Debug] PackManager Active ID: {pm.active_pack_id}")
         log(f"[Debug] PackManager Data Loaded: {bool(pm.pack_data)}")
+
+        pm.load_plugins(self.config.plugins_enabled)
+
         if pm.pack_data:
             log(f"[Debug] Character Name from Pack: {pm.get_info('character', {}).get('name')}")
         else:
             log("[Debug] CRITICAL: Pack data is empty! Check pack.json path and ID.")
         self.project_root = Path(self.config.config_path).parent
         self._cleanup_temp_dir()
-
-
 
         self.gpu_vendor = "Unknown"
         self.can_monitor_gpu = True
@@ -110,7 +111,7 @@ class ApplicationController(QObject):
                 output = raw_out.decode("utf-8")
             except UnicodeDecodeError:
                 output = raw_out.decode("gbk", errors="ignore")
-            
+
             output_up = output.upper()
             if "AMD" in output_up or "RADEON" in output_up:
                 self.gpu_vendor = "AMD"
@@ -128,8 +129,8 @@ class ApplicationController(QObject):
         self._post_busy_cooldown_end = 0
         self._last_busy_state = False
         self._pending_triggers = []
-        self._is_chain_executing = False 
-        self.current_weather = {} 
+        self._is_chain_executing = False
+        self.current_weather = {}
         self.interaction_locked = False
         self.state = self._load_state()
         if self.config.sovits_enabled:
@@ -151,11 +152,11 @@ class ApplicationController(QObject):
         self.audio_player = AudioPlayer(self)
         self.audio_player.playback_finished.connect(self._on_audio_finished)
         self.main_window = MainWindow(self.config)
-        self.main_window.controller = self 
-        
+        self.main_window.controller = self
+
         self.tray_icon = TrayIcon(self.main_window)
         self.tray_icon.show()
-        
+
         self.debug_panel = None
         if self.config.debug_panel:
             try:
@@ -223,11 +224,11 @@ class ApplicationController(QObject):
     def handle_manual_debug_response(self, data):
         response = data["response"]
         setattr(response, 'tts_lang', data.get("tts_lang", "ja"))
-        
+
         log(f"[DebugPanel] Manual response received: {response.emotion} | {response.text_display}")
-        
+
         self.main_window.start_thinking()
-        
+
         QTimer.singleShot(1500, lambda: self.llm_response_ready.emit(response))
 
     async def _async_init_stt(self):
@@ -273,10 +274,14 @@ class ApplicationController(QObject):
         else:
             QTimer.singleShot(2000, self.main_window.finish_processing)
     def _on_audio_finished(self):
-        log("[Main] Audio playback finished.")
-        self.main_window.set_speaking(False)
-        self.main_window.on_audio_complete()
-        self._busy_watchdog.stop()
+        try:
+            log("[Main] Audio playback finished.")
+            self.main_window.set_speaking(False)
+            self.main_window.on_audio_complete()
+            self._busy_watchdog.stop()
+        except OverflowError as e:
+            log(f"[Main] OverflowError in _on_audio_finished: {e}")
+            self._is_chain_executing = False
     def _trigger_voice_response(self, text, emotion, voice_file=None, is_behavior=False, tts_text=None, tts_lang=None):
         v_path = None
         if voice_file:
@@ -297,7 +302,7 @@ class ApplicationController(QObject):
     async def _generate_tts(self, text: str, emotion: str, language: Optional[str] = None):
         if not language and self.config.use_pack_settings:
             language = self.config.pack_manager.get_info("tts_language", "ja")
-        
+
         result = await self.tts_backend.synthesize(text, emotion, language=language)
         self.tts_ready.emit(result)
     def _handle_behavior_trigger(self, actions: list):
@@ -305,7 +310,7 @@ class ApplicationController(QObject):
         if self.interaction_locked: return
         if self.main_window.is_processing or self.main_window.is_listening:
             return
-        
+
         if self.is_busy:
             return
 
@@ -331,12 +336,12 @@ class ApplicationController(QObject):
             self._trigger_cooldown_end = now + self.config.trigger_cooldown
             self._execute_actions_chain(trigger)
     def _execute_actions_chain(self, actions):
-        self._is_chain_executing = True 
+        self._is_chain_executing = True
         self._current_sequence = actions
         self._current_sequence_idx = 0
-        
+
         self._current_chain_callback = None
-        
+
         def execute_next():
             if self._current_sequence_idx >= len(self._current_sequence):
                 if self._current_chain_callback:
@@ -359,7 +364,19 @@ class ApplicationController(QObject):
                 return
 
             if action.get("type") == "delay":
-                QTimer.singleShot(int(action.get("sec", 1.0) * 1000), execute_next)
+
+                try:
+                    sec_val = action.get("sec", 1.0)
+
+                    sec = float(sec_val) if sec_val is not None else 1.0
+
+                    sec = max(0.0, min(sec, 300.0))
+                    delay_ms = int(sec * 1000)
+                    QTimer.singleShot(delay_ms, execute_next)
+                except (ValueError, TypeError, OverflowError) as e:
+                    log(f"[Main] Delay action 参数错误: {action.get('sec')}, 错误: {e}")
+
+                    execute_next()
                 return
 
             if action.get("type") == "speak":
@@ -387,21 +404,45 @@ class ApplicationController(QObject):
         elif atype == "fade_out":
             mw.fade_to(action.get("opacity", 0.3))
             mw.set_fade_recovery(action.get("hover_recovery", 0.0))
-            if action.get("sec"): QTimer.singleShot(int(action.get("sec")*1000), lambda: mw.fade_to(1.0))
+            fade_sec = action.get("sec")
+            if fade_sec:
+                try:
+                    sec = float(fade_sec)
+                    sec = max(0.0, min(sec, 300.0))
+                    QTimer.singleShot(int(sec * 1000), lambda: mw.fade_to(1.0))
+                except (ValueError, TypeError, OverflowError):
+                    pass
         elif atype == "lock_interaction":
             duration = action.get("sec", 0.0)
-            if duration > 0:
-                self.interaction_locked = True
-                mw.set_hard_lock(True, highlight=True)
-                QTimer.singleShot(int(duration * 1000), self._unlock_interaction)
+            try:
+                dur = float(duration) if duration is not None else 0.0
+                dur = max(0.0, min(dur, 300.0))
+                if dur > 0:
+                    self.interaction_locked = True
+                    mw.set_hard_lock(True, highlight=True)
+                    QTimer.singleShot(int(dur * 1000), self._unlock_interaction)
+            except (ValueError, TypeError, OverflowError):
+                pass
         elif atype == "exit_app":
             log("[Main] Exit action triggered.")
             self.cleanup()
             QApplication.quit()
+        else:
+            if self.config.plugins_enabled:
+                pm = self.config.pack_manager
+                if atype in pm.plugin_action_map:
+                    pid = pm.plugin_action_map[atype]
+                    module = pm.loaded_plugins.get(pid)
+                    if module:
+                        log(f"[Main] Forwarding action '{atype}' to plugin '{pid}'")
+                        params = action.get("params", [])
+                        threading.Thread(target=module.execute_action, args=(atype, params), daemon=True).start()
     def _handle_pack_change(self, pack_id: str):
         log(f"[Main] Switching pack to {pack_id}")
         self.main_window.hide()
         self.config.pack_manager.set_active_pack(pack_id)
+        self.config.pack_manager.load_plugins(self.config.plugins_enabled)
+
         pdata = self.config.pack_manager.pack_data
         new_name = pdata.get("character", {}).get("name", "Unknown")
         new_outfit = pdata.get("character", {}).get("outfits", [{}])[0].get("id", "default")
