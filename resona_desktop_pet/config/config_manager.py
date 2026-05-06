@@ -266,6 +266,22 @@ class ConfigManager:
         return self.get("IdleTrigger", "prompt", "The user has been idle for a while. Say something brief to check on them or start a casual conversation.")
 
     @property
+    def screen_watch_enabled(self) -> bool:
+        return self.getboolean("ScreenWatch", "enabled", False)
+
+    @property
+    def screen_watch_interval(self) -> float:
+        return self.getfloat("ScreenWatch", "interval", 45.0)
+
+    @property
+    def screen_watch_cooldown(self) -> float:
+        return self.getfloat("ScreenWatch", "cooldown", 10.0)
+
+    @property
+    def screen_watch_prompt(self) -> str:
+        return self.get("ScreenWatch", "prompt", "Look at the user's screen carefully. What are they doing right now?")
+
+    @property
     def text_read_speed(self) -> float:
         return self.getfloat("General", "text_read_speed", 0.2)
 
@@ -404,6 +420,14 @@ class ConfigManager:
     @property
     def always_on_top(self) -> bool:
         return self.getboolean("General", "always_on_top", False)
+
+    @property
+    def auto_start_on_boot(self) -> bool:
+        return self.getboolean("General", "auto_start_on_boot", False)
+
+    @property
+    def hide_console_window(self) -> bool:
+        return self.getboolean("General", "hide_console_window", True)
 
     @property
     def action_bring_to_front(self) -> bool:
@@ -804,6 +828,14 @@ class ConfigManager:
         return self.get("Memory", "vector_model_file", "onnx/model_quint8_avx2.onnx")
 
     @property
+    def memory_resume_history(self) -> bool:
+        return self.getboolean("Memory", "resume_history", False)
+
+    @property
+    def memory_resume_history_rounds(self) -> int:
+        return self.getint("Memory", "resume_history_rounds", 0) or self.max_rounds
+
+    @property
     def timer_enabled(self) -> bool:
         return self.getboolean("Timer", "enabled", False)
 
@@ -1016,6 +1048,26 @@ class ConfigManager:
 
         raise RuntimeError(f"CRITICAL: Required prompt file '{filename}' not found in active pack and no default available.")
 
+    def get_vision_llm_config(self) -> Optional[dict]:
+        section = "Model_Vision"
+        if section not in self.config.sections():
+            return None
+        model_name = self.get(section, "model_name", "")
+        if not model_name:
+            return None
+        api_key = self.get(section, "api_key", "")
+        if not api_key:
+            return None
+        return {
+            "model_type": "vision",
+            "api_key": api_key,
+            "base_url": self.get(section, "base_url", ""),
+            "model_name": model_name,
+            "temperature": self.getfloat(section, "temperature", 0.7),
+            "top_p": self.getfloat(section, "top_p", 1.0),
+            "max_tokens": self.getint(section, "max_tokens", 512)
+        }
+
     def get_llm_config(self) -> dict:
         mode = self.get("General", "llm_mode", "cloud").lower()
         
@@ -1046,5 +1098,7 @@ class ConfigManager:
             "model_name": self.get(target_section, "model_name", ""),
             "temperature": self.getfloat(target_section, "temperature", 0.95),
             "top_p": self.getfloat(target_section, "top_p", 1.0),
-            "max_tokens": self.getint(target_section, "max_tokens", 768)
+            "max_tokens": self.getint(target_section, "max_tokens", 768),
+            "frequency_penalty": self.getfloat(target_section, "frequency_penalty") if self.config.has_option(target_section, "frequency_penalty") else None,
+            "presence_penalty": self.getfloat(target_section, "presence_penalty") if self.config.has_option(target_section, "presence_penalty") else None
         }

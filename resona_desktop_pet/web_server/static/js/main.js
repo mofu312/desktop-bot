@@ -232,7 +232,7 @@ function handleMessage(msg) {
         }
     } else if (msg.type === 'status') {
                 if (msg.state === 'thinking') {
-                    textInput.value = msg.text || "Thinking...";
+                    textInput.value = msg.text || "思考中...";
                     textInput.disabled = true;
                     sendBtn.disabled = true;
                     micBtn.disabled = true;
@@ -460,7 +460,7 @@ async function startRecording() {
 
         console.log(`[REC] Recording started. Max: ${maxRecordingTimeMs}ms, Silence: ${silenceThreshold}s`);
         
-        textInput.value = "Listening...";
+        textInput.value = "录音中...";
         textInput.disabled = true;
         sendBtn.disabled = true;
 

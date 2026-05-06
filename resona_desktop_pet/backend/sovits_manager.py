@@ -15,6 +15,12 @@ import logging
 
 logger = logging.getLogger("SoVITS")
 
+# Markers in SoVITS stdout/stderr that indicate models are fully loaded
+_MODEL_LOADED_MARKERS = [
+    "Application startup complete",
+    "Uvicorn running on",
+]
+
 _sovits_logger = None
 
 def set_sovits_logger(logger_func):
@@ -35,6 +41,8 @@ class SoVITSManager:
         self.model_version = model_version
         self.process: Optional[subprocess.Popen] = None
         self.api_url = f"http://127.0.0.1:{port}"
+        self._startup_complete = threading.Event()
+        self._load_detected = threading.Event()
         register_cleanup(self.stop)
         gpt_sovits_root = project_root / "GPT-SoVITS"
         api_files = list(gpt_sovits_root.rglob("api_v2.py"))
@@ -46,7 +54,7 @@ class SoVITSManager:
             self.api_script = self.gpt_sovits_dir / "api_v2.py"
         try: self.rel_api_script = os.path.relpath(self.api_script, self.gpt_sovits_dir)
         except: self.rel_api_script = str(self.api_script)
-        self.config_file = self.gpt_sovits_dir / "configs" / "tts_infer.yaml"
+        self.config_file = self.gpt_sovits_dir / "GPT_SoVITS" / "configs" / "tts_infer.yaml"
         self._start_time: Optional[float] = None
         
     def is_running(self, timeout: float = 2.0, suppress_exception: bool = False) -> bool:
@@ -67,6 +75,10 @@ class SoVITSManager:
                 self._kill_process_on_port(self.port)
                 time.sleep(2)
             else: return True
+        elif kill_existing:
+            # Even if is_running() returned False, there might be zombie processes on the port
+            self._kill_process_on_port(self.port)
+            time.sleep(1)
         self._start_time = time.time()
         
         if sys.platform == "win32":
@@ -215,10 +227,22 @@ class SoVITSManager:
                     win32job.AssignProcessToJobObject(h_job, self.process._handle)
                     self._h_job = h_job
                 except Exception: pass
+            self._startup_complete.clear()
+            self._load_detected.clear()
             def stream_output(pipe, prefix):
                 try:
                     for line in iter(pipe.readline, ''):
-                        if line: log_sovits(f"{prefix} {line.strip()}")
+                        if line:
+                            stripped = line.strip()
+                            log_sovits(f"{prefix} {stripped}")
+                            # Detect model loading completion
+                            for marker in _MODEL_LOADED_MARKERS:
+                                if marker.lower() in stripped.lower():
+                                    self._startup_complete.set()
+                                    break
+                            # Also detect when model weights start loading
+                            if "loading" in stripped.lower() and "weights" in stripped.lower():
+                                self._load_detected.set()
                 except Exception: pass
             threading.Thread(target=stream_output, args=(self.process.stdout, "[SoVITS]"), daemon=True).start()
             threading.Thread(target=stream_output, args=(self.process.stderr, "[SoVITS]"), daemon=True).start()
@@ -226,16 +250,31 @@ class SoVITSManager:
             logger.info(f"[SoVITS] Process started (PID: {self.process.pid}). Waiting for API to be ready...")
             start_time = time.time()
             SUPPRESS_DURATION = 55  # 前55秒内不打印is_running异常
+            http_ready = False
             while time.time() - start_time < timeout:
                 elapsed = time.time() - self._start_time if self._start_time else float('inf')
                 suppress = elapsed < SUPPRESS_DURATION
-                if self.is_running(suppress_exception=suppress):
-                    logger.info(f"[SoVITS] API is ready after {time.time() - start_time:.2f}s")
-                    return True
-                if self.process.poll() is not None:
-                    exit_code = self.process.poll()
-                    logger.error(f"[SoVITS] Error: Process exited unexpectedly with code {exit_code}")
-                    return False
+                if not http_ready:
+                    if self.is_running(suppress_exception=suppress):
+                        http_ready = True
+                        logger.info(f"[SoVITS] HTTP API ready after {time.time() - start_time:.2f}s, waiting for model loading...")
+                    elif self.process.poll() is not None:
+                        exit_code = self.process.poll()
+                        logger.error(f"[SoVITS] Error: Process exited unexpectedly with code {exit_code}")
+                        return False
+                if http_ready:
+                    # After HTTP is ready, wait for model loading (up to remaining timeout)
+                    if self._startup_complete.wait(timeout=0.5):
+                        elapsed = time.time() - start_time
+                        if self._load_detected.is_set():
+                            logger.info(f"[SoVITS] Models loaded after {elapsed:.2f}s (weights loaded + startup complete)")
+                        else:
+                            logger.info(f"[SoVITS] Startup complete after {elapsed:.2f}s")
+                        return True
+                    if self.process.poll() is not None:
+                        exit_code = self.process.poll()
+                        logger.error(f"[SoVITS] Error: Process exited with code {exit_code} after HTTP ready")
+                        return False
                 time.sleep(0.5)
             
             logger.error(f"[SoVITS] Error: Startup timed out after {timeout}s")
@@ -246,11 +285,56 @@ class SoVITSManager:
             return False
     
     def _kill_process_on_port(self, port: int):
+        killed_pids = set()
+        # Method 1: netstat -ano (most reliable on Windows)
+        if sys.platform == "win32":
+            try:
+                result = subprocess.run(
+                    ["netstat", "-ano"],
+                    capture_output=True, text=True, timeout=5,
+                    creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+                )
+                for line in result.stdout.splitlines():
+                    # Match any line referencing this port (handles both EN and ZH locale)
+                    # Format:  TCP    127.0.0.1:9880    0.0.0.0:0    LISTENING/监听中    2172
+                    port_str = f":{port}"
+                    if port_str not in line:
+                        continue
+                    # Find PID in the last whitespace-delimited column
+                    parts = line.strip().split()
+                    if not parts:
+                        continue
+                    pid_str = parts[-1]
+                    if pid_str.isdigit():
+                        pid = int(pid_str)
+                        if pid != 0 and pid not in killed_pids:
+                            killed_pids.add(pid)
+                            try:
+                                subprocess.run(
+                                    ["taskkill", "/F", "/T", "/PID", str(pid)],
+                                    capture_output=True, timeout=5
+                                )
+                                log_sovits(f"[SoVITS] Killed process {pid} on port {port} via netstat/taskkill")
+                            except: pass
+            except Exception as e:
+                log_sovits(f"[SoVITS] netstat cleanup error: {e}")
+            except Exception as e:
+                log_sovits(f"[SoVITS] netstat cleanup error: {e}")
+        # Method 2: psutil (fallback / cross-platform)
         for proc in psutil.process_iter(['pid', 'name']):
             try:
+                if proc.pid in killed_pids:
+                    continue
                 for conn in proc.connections(kind='inet'):
-                    if conn.laddr.port == port: proc.kill()
+                    if conn.laddr.port == port:
+                        try:
+                            proc.kill()
+                            killed_pids.add(proc.pid)
+                            log_sovits(f"[SoVITS] Killed process {proc.pid} on port {port} via psutil")
+                        except: pass
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess): pass
+        if killed_pids:
+            time.sleep(1)  # Wait for processes to fully exit
 
     def stop(self) -> None:
         if self.process is None: return

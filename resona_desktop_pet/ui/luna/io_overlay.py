@@ -46,8 +46,9 @@ class IOOverlay(QWidget):
         self.edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.edit.setFrameStyle(QFrame.Shape.NoFrame)
         self.edit.viewport().setAutoFillBackground(False)
-        self.edit.setStyleSheet("background: transparent; color: white;")
-        self.edit.setPlaceholderText("Type and press Enter...")
+        self.edit.setStyleSheet("background: transparent; color: white; padding: 0px;")
+        self.edit.document().setDocumentMargin(0)
+        self.edit.setPlaceholderText("输入后按回车...")
         self.edit.setAcceptDrops(False)
         self.edit.installEventFilter(self)
         self.edit.textChanged.connect(self._on_text_changed)
@@ -58,6 +59,8 @@ class IOOverlay(QWidget):
         self.body.setWordWrap(True)
         self.body.setStyleSheet("color: white;")
         self.body.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self.body.setContentsMargins(0, 0, 0, 0)
+        self.body.setIndent(0)
 
         self.to_input()
 
@@ -91,9 +94,11 @@ class IOOverlay(QWidget):
         self.update()
 
     def show_status(self, text: str):
-        self.to_output(text, animate=True)
+        self.body.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.to_output(text, animate=False)
 
     def show_output(self, text: str):
+        self.body.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self.to_output(text, animate=True)
 
     def set_busy_header(self, header: Optional[str]):
@@ -115,6 +120,10 @@ class IOOverlay(QWidget):
         self.update_header_text()
         self.layout_children()
         self.update()
+        # Reset dialogue size back to default
+        parent = self.parent()
+        if parent and hasattr(parent, 'resize_dialogue_to') and hasattr(parent, 'io'):
+            parent.resize_dialogue_to(0)
 
     def to_output(self, text: str, animate: bool = False):
         self.edit.setEnabled(False)
@@ -122,17 +131,64 @@ class IOOverlay(QWidget):
         self.body.setVisible(True)
 
         self.update_header_text()
-        self.layout_children()
-        self.update()
 
         self.typing_timer.stop()
         if animate and text:
             self.full_text = text
             self.current_char_index = 0
             self.body.setText("")
+            # Pre-calculate required height based on full text
+            self._adjust_height_for_text(text)
             self.typing_timer.start(30)
         else:
             self.body.setText(text)
+            self._adjust_height_for_text(text)
+
+    def _adjust_height_for_text(self, text: str):
+        """Calculate the required widget height to display full text and request resize."""
+        if not text or not self.isVisible():
+            return
+        w = self.width()
+        pad = max(6, self.height() // 20)
+        avail_w = max(10, w - 2 * pad)
+        font = self.body.font()
+        fm = font
+        try:
+            from PySide6.QtGui import QFontMetrics
+            fm = QFontMetrics(font)
+        except:
+            pass
+        line_height = fm.height() if hasattr(fm, 'height') else 20
+        # 对中日韩文字，每个字约等于 line_height 宽度；对拉丁字符用 averageCharWidth
+        cjk_count = sum(1 for c in text if '一' <= c <= '鿿' or '぀' <= c <= 'ゟ' or '゠' <= c <= 'ヿ')
+        non_cjk = len(text) - cjk_count
+        avg_w = fm.averageCharWidth() if hasattr(fm, 'averageCharWidth') else fm.maxWidth() if hasattr(fm, 'maxWidth') else 10
+        if avg_w <= 0:
+            avg_w = 10
+        # CJK 字符宽度 ≈ line_height，非 CJK 用 averageCharWidth
+        char_width = (cjk_count * line_height + non_cjk * avg_w) / max(1, len(text))
+        if char_width <= 0:
+            char_width = 10
+        chars_per_line = max(1, avail_w // char_width)
+        total_lines = 0
+        for paragraph in text.split('\n'):
+            if not paragraph:
+                total_lines += 1
+                continue
+            para_lines = (len(paragraph) + chars_per_line - 1) // chars_per_line
+            total_lines += para_lines
+        needed_h = total_lines * line_height + line_height  # extra line for padding
+        header_h = max(18, self.height() // 5)
+        pad_total = pad + header_h + pad
+        total_needed = max(self.height(), needed_h + pad_total)
+        if total_needed != self.height():
+            self._request_resize(total_needed)
+
+    def _request_resize(self, new_height: int):
+        """Request the parent to resize this widget to accommodate content."""
+        parent = self.parent()
+        if parent and hasattr(parent, 'resize_dialogue_to'):
+            parent.resize_dialogue_to(new_height)
 
     def _type_next_char(self):
         if self.current_char_index < len(self.full_text):
@@ -244,7 +300,7 @@ class IOOverlay(QWidget):
         style = f"color: {text_color};"
         self.header.setStyleSheet(style)
         self.body.setStyleSheet(style)
-        self.edit.setStyleSheet(f"background: transparent; {style}")
+        self.edit.setStyleSheet(f"background: transparent; {style} padding: 0px;")
 
         if shadow_enabled and shadow_blur > 0:
             shadow_color_q = QColor(shadow_color)

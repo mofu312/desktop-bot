@@ -4,7 +4,7 @@
         "name": "示例角色包",
         "description": "这是一个用于演示如何制作角色包的示例。包含完整的情绪支持、触发器示例和错误配置。",
         "version": "1.0.0",
-        "author": "你的名字"
+        "author": "mofu312"
     },
     "character": {
         "name": "示例角色",

@@ -155,9 +155,9 @@ def get_listening_state(controller):
     if not controller: return {}
     
     listening_texts = getattr(controller.config, "listening_texts", [])
-    listen_text_entry = random.choice(listening_texts) if listening_texts else "Listening..."
+    listen_text_entry = random.choice(listening_texts) if listening_texts else "录音中..."
     if isinstance(listen_text_entry, dict):
-        listen_text = listen_text_entry.get("text", "Listening...")
+        listen_text = listen_text_entry.get("text", "录音中...")
     else:
         listen_text = str(listen_text_entry)
     

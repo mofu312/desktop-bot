@@ -10,7 +10,7 @@ Follow these steps to get your ResonaDesktopPet up and running in minutes.
 - **Python 3.12** (if not using the Full Runtime mode in `setup.ps1`).
 
 ## 1. Installation
-1. **Clone the Repo**: `git clone https://github.com/JodieRuth/Resona-Desktop-Pet.git`
+1. **Clone the Repo**: `git clone https://github.com/mofu312/Resona-Desktop-Pet.git`
 2. **Setup Environment**:
    - Right-click `setup.ps1` and select **"Run with PowerShell"**.
    - **Option 2 (Recommended)**: Creates a dedicated Runtime environment, keeping your system Python clean.
@@ -73,4 +73,4 @@ Follow these steps to get your ResonaDesktopPet up and running in minutes.
 - To debug triggers: Set `debugtrigger = true` in `config.cfg`, then run `tools/sensor_mocker.py`.
 
 ---
-Parts of this document were generated with the assistance of large language models, and translations were also completed by large language models. Any deviations do not represent the author's true intent.
+Parts of this document were generated with the assistance of large language models.

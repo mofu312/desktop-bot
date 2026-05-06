@@ -292,7 +292,8 @@ class RemoteTTSHandler:
                                 "-ac", "1",
                                 "-sample_fmt", "s16",
                                 pcm_path
-                            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
                             logger.info(f"FFmpeg resample exit={result_ffmpeg.returncode}, {sr}Hz -> {TARGET_SR}Hz PCM_16 (cmd={ffmpeg_cmd})")
                             if result_ffmpeg.returncode == 0:
                                 output_path = Path(pcm_path)

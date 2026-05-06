@@ -62,6 +62,8 @@ class MainWindow(QWidget):
         self._pack_change_handler_connected = False
         self.project_root = Path(self.config.config_path).parent
         
+        self._dialogue_dynamic_height = 0
+
         self.setObjectName("MainRoot")
         self.character = CharacterView(self)
         self.io = IOOverlay(self)
@@ -145,13 +147,21 @@ class MainWindow(QWidget):
         self.character.setAcceptDrops(True)
         self.io.setAcceptDrops(True)
 
+    def resize_dialogue_to(self, new_height: int):
+        if new_height <= 0:
+            self._dialogue_dynamic_height = 0
+        else:
+            self._dialogue_dynamic_height = new_height
+        self.update_io_geometry()
+        self.update()
+
     class DialogueAdapter:
         def __init__(self, window):
             self.window = window
             self.io = window.io
             self.input_field = self.io.edit 
         def set_text(self, text: str, animate: bool = False):
-            if text == "Listening...":
+            if text == "Listening..." or text == "录音中...":
                 self.io.show_status(text)
             else:
                 self.io.show_output(text) 
@@ -224,10 +234,10 @@ class MainWindow(QWidget):
         self.is_processing = True
         self.cancel_idle_fade()
         self.set_emotion("<E:thinking>")
-        status_name = f"[{self.config.character_name}] Thinking..."
+        status_name = f"[{self.config.character_name}] 思考中..."
         self.dialogue.show_name(status_name)
         
-        self.set_input_locked(True, "Thinking...")
+        self.set_input_locked(True, "思考中...")
         
         if self.config.thinking_text_enabled:
             self.show_thinking_text()
@@ -235,7 +245,7 @@ class MainWindow(QWidget):
                 self.thinking_switch_timer.stop()
                 self.thinking_switch_timer.start(int(self.config.thinking_text_switch_time * 1000))
         else:
-            self.io.show_status("Thinking...")
+            self.io.show_status("思考中...")
 
     def on_query_submitted(self, text: str):
         if self.is_listening: return
@@ -250,7 +260,7 @@ class MainWindow(QWidget):
                 self.thinking_switch_timer.stop()
                 self.thinking_switch_timer.start(int(self.config.thinking_text_switch_time * 1000))
         else:
-            self.io.show_status("Thinking...")
+            self.io.show_status("思考中...")
                 
     def switch_thinking_text(self):
         if self.is_listening or not self.is_processing: return
@@ -269,7 +279,7 @@ class MainWindow(QWidget):
             text = random.choice(self.listening_texts)
             self.io.show_status(text)
         else:
-            self.io.show_status("Listening...")
+            self.io.show_status("录音中...")
 
     def set_listening(self, listening: bool, username: str = "User"):
         self.is_listening = listening
@@ -280,7 +290,7 @@ class MainWindow(QWidget):
             self.thinking_switch_timer.stop()
             self.cancel_idle_fade()
             self.show_listening_text()
-            status_name = f"[{username}] Recording..."
+            status_name = f"[{username}] 录音中..."
             self.dialogue.show_name(status_name)
         else:
             self.schedule_idle_fade()
@@ -297,9 +307,9 @@ class MainWindow(QWidget):
         self.io.edit.setReadOnly(locked)
         if locked:
             self.io.edit.clear()
-            self.io.edit.setPlaceholderText(placeholder if placeholder else "Listening...")
+            self.io.edit.setPlaceholderText(placeholder if placeholder else "录音中...")
         else:
-            self.io.edit.setPlaceholderText("Type and press Enter...")
+            self.io.edit.setPlaceholderText("输入后按回车...")
 
     def set_emotion(self, emotion_tag: str):
         self.character.set_emotion(emotion_tag)
@@ -338,6 +348,7 @@ class MainWindow(QWidget):
         self.is_displaying_text = False
         self.is_speaking = False
         self.set_input_locked(False)
+        self._dialogue_dynamic_height = 0
         self.io.back_to_input_mode()
         self.thinking_timer.stop()
         self.thinking_switch_timer.stop()
@@ -346,7 +357,7 @@ class MainWindow(QWidget):
         self.schedule_idle_fade()
         
     def on_audio_complete(self):
-        QTimer.singleShot(1500, self.finish_processing)
+        QTimer.singleShot(4000, self.finish_processing)
 
     def reset_to_default(self):
         self.finish_processing()
@@ -540,9 +551,14 @@ class MainWindow(QWidget):
         img_h = img_rect.height()
         conf_w = self.config.dialogue_width
         conf_h = self.config.dialogue_height
+        if self._dialogue_dynamic_height > 0:
+            conf_h = self._dialogue_dynamic_height
         w = conf_w if conf_w > 0 else int(img_w * 0.6)
         h = conf_h if conf_h > 0 else int(img_h * 0.25)
         h = max(60, h)
+        # 限制对话框高度不超过角色高度的 85%，防止文本溢出窗口
+        max_h = int(img_h * 0.85)
+        h = min(h, max_h)
         x = img_x + (img_w - w) // 2
         y = img_y + img_h - h + 5
         box = QRect(x, y, w, h)
@@ -767,10 +783,10 @@ class MainWindow(QWidget):
             
     def show_context_menu(self):
         menu = QMenu(self)
-        menu.addAction("Replay Last Response", self.replay_requested.emit)
-        menu.addAction("Refresh Audio Devices", self.refresh_audio_requested.emit)
+        menu.addAction("重播上次回复", self.replay_requested.emit)
+        menu.addAction("刷新音频设备", self.refresh_audio_requested.emit)
         menu.addSeparator()
-        settings_action = menu.addAction("Settings", self.settings_requested.emit)
+        settings_action = menu.addAction("设置", self.settings_requested.emit)
         menu.setStyleSheet("""
             QMenu {
                 background-color: rgba(40, 40, 40, 230);
@@ -792,19 +808,19 @@ class MainWindow(QWidget):
                 margin: 5px 10px;
             }
         """ )
-        outfit_menu = menu.addMenu("Change Outfit")
+        outfit_menu = menu.addMenu("更换服装")
         self.populate_outfit_menu(outfit_menu)
-        pack_menu = menu.addMenu("Change Character Pack")
+        pack_menu = menu.addMenu("更换角色包")
         self.populate_pack_menu(pack_menu)
         menu.addSeparator()
-        drag_menu = menu.addMenu("Drag Binding")
+        drag_menu = menu.addMenu("拖拽按键")
         self.populate_drag_menu(drag_menu)
-        pause_menu = menu.addMenu("Physics Drag Pause Binding")
+        pause_menu = menu.addMenu("物理拖拽暂停按键")
         self.populate_physics_pause_menu(pause_menu)
         menu.addSeparator()
-        hide_action = menu.addAction("Hide (Background)")
+        hide_action = menu.addAction("隐藏（后台运行）")
         hide_action.triggered.connect(self.manual_hide)
-        menu.addAction("Close", self.close)
+        menu.addAction("关闭", self.close)
         menu.exec(QCursor.pos())
         
     def populate_outfit_menu(self, menu: QMenu):
@@ -905,6 +921,13 @@ class MainWindow(QWidget):
     @property
     def is_busy(self) -> bool:
         return self.is_processing or self.is_speaking or self.is_listening
+
+    @property
+    def has_input_text(self) -> bool:
+        """Check if user has unsubmitted text in the input field."""
+        return (self.io.edit.isVisible() and
+                self.io.edit.isEnabled() and
+                bool(self.io.edit.toPlainText().strip()))
         
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():

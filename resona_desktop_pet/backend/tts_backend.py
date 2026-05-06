@@ -71,7 +71,21 @@ class TTSBackend:
         if target not in config:
             logger.info(f"[TTS] Warning: Emotion {target} not defined in {target_pack}. Falling back.")
             target = "<E:smile>"
-        return config.get(target, {})
+        emotion_config = config.get(target, {})
+        return self._pick_ref_audio(emotion_config)
+
+    def _pick_ref_audio(self, emotion_config: dict) -> dict:
+        """多条参考音频(ref_wavs)时随机选一条，兼容单条(ref_wav)旧格式。"""
+        import random
+        ref_wavs = emotion_config.get("ref_wavs", None)
+        if ref_wavs and isinstance(ref_wavs, list):
+            picked = random.choice(ref_wavs)
+            return {
+                "ref_wav": picked.get("ref_wav", emotion_config.get("ref_wav", "")),
+                "ref_text": picked.get("ref_text", emotion_config.get("ref_text", "")),
+                "ref_lang": picked.get("ref_lang", emotion_config.get("ref_lang", "ja")),
+            }
+        return emotion_config
 
     def _resolve_ref_audio_path(self, ref_wav: str, pack_id: Optional[str] = None) -> Path:
         target_pack = pack_id if pack_id else getattr(self.config.pack_manager, "active_pack_id", "")
@@ -202,18 +216,6 @@ Parameters: {json.dumps(payload, ensure_ascii=False, indent=2)}
             ref_wav_path = self._resolve_ref_audio_path(emotion_config["ref_wav"], pack_id=pack_id)
             ref_lang = language if language else self.config.tts_language
             prompt_lang = emotion_config.get("ref_lang", "ja")
-            
-            pack_model_dir = self.config.pack_manager.get_path("models", "sovits", pack_id=pack_id)
-            gpt_path = None
-            sovits_path = None
-            if pack_model_dir and pack_model_dir.exists():
-                ckpt_files = list(pack_model_dir.glob("*.ckpt"))
-                pth_files = list(pack_model_dir.glob("*.pth"))
-                if ckpt_files and pth_files:
-                    gpt_path = str(sorted(ckpt_files)[0].absolute().as_posix())
-                    sovits_path = str(sorted(pth_files)[0].absolute().as_posix())
-                    logger.info(f"[TTS] Dynamic model switch detected: {pack_model_dir.name}")
-
             logger.info(f"[TTS] Using reference audio: {ref_wav_path} with language: {ref_lang} (Prompt: {prompt_lang})")
             output_path = os.path.join(self._temp_dir, f"output_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.wav")
             prompt_text = emotion_config.get("ref_text", "")
@@ -232,12 +234,6 @@ Parameters: {json.dumps(payload, ensure_ascii=False, indent=2)}
                 "repetition_penalty": 1.35
             }
             
-            if gpt_path and sovits_path:
-                payload["gpt_method"] = "set_gpt_weights"
-                payload["gpt_path"] = gpt_path
-                payload["sovits_method"] = "set_sovits_weights"
-                payload["sovits_path"] = sovits_path
-
             self._log_sovits_params(payload)
             logger.info(f"[TTS] Sending request to {self.api_url}/tts")
             async with aiohttp.ClientSession(timeout=self.timeout) as session:
@@ -268,7 +264,8 @@ Parameters: {json.dumps(payload, ensure_ascii=False, indent=2)}
                                     "-ac", "1",
                                     "-sample_fmt", "s16",
                                     pcm_path
-                                ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                ], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                  creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
                                 logger.info(f"[TTS] FFmpeg resample exit={result.returncode}, {sr}Hz -> {TARGET_SR}Hz PCM_16 (cmd={ffmpeg_cmd})")
                                 if result.returncode == 0:
                                     output_path = pcm_path

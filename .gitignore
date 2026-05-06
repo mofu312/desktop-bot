@@ -211,3 +211,4 @@ android-client/**/*.apk
 android-client/**/*.aab
 android-client/**/*.iml
 android-client/*.keystore
+packs/*/models/

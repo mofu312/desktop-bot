@@ -23,7 +23,7 @@ class SettingsDialog(QDialog):
         self.project_root = Path(config.config_path).parent
         self.current_model_num = -1
 
-        self.setWindowTitle("Resona Desktop Pet - Settings")
+        self.setWindowTitle("Resona Desktop Pet - 设置")
         self.setMinimumSize(980, 900)
         self.resize(980, 900)
         self.setStyleSheet("""
@@ -119,27 +119,27 @@ class SettingsDialog(QDialog):
 
 
         tabs = QTabWidget()
-        tabs.addTab(self._create_general_tab(), "General")
-        tabs.addTab(self._create_appearance_tab(), "Appearance")
-        tabs.addTab(self._create_behavior_tab(), "Behavior")
+        tabs.addTab(self._create_general_tab(), "通用")
+        tabs.addTab(self._create_appearance_tab(), "外观")
+        tabs.addTab(self._create_behavior_tab(), "行为")
         tabs.addTab(self._create_llm_tab(), "LLM")
         tabs.addTab(self._create_tts_tab(), "TTS")
         tabs.addTab(self._create_stt_tab(), "STT")
         tabs.addTab(self._create_ocr_tab(), "OCR")
-        tabs.addTab(self._create_weather_tab(), "Weather")
-        tabs.addTab(self._create_physics_tab(), "Physics")
+        tabs.addTab(self._create_weather_tab(), "天气")
+        tabs.addTab(self._create_physics_tab(), "物理")
         layout.addWidget(tabs)
 
 
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
-        cancel_btn = QPushButton("Cancel")
+        cancel_btn = QPushButton("取消")
         cancel_btn.setObjectName("cancelButton")
         cancel_btn.clicked.connect(self.reject)
         button_layout.addWidget(cancel_btn)
 
-        save_btn = QPushButton("Save")
+        save_btn = QPushButton("保存")
         save_btn.clicked.connect(self._save_settings)
         button_layout.addWidget(save_btn)
 
@@ -160,74 +160,82 @@ class SettingsDialog(QDialog):
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
-        char_group = QGroupBox("Character")
+        char_group = QGroupBox("角色")
         char_layout = self._make_form_layout(char_group)
 
         self.character_name_edit = QLineEdit()
-        char_layout.addRow("Character Name:", self.character_name_edit)
+        char_layout.addRow("角色名：", self.character_name_edit)
 
         self.username_edit = QLineEdit()
-        char_layout.addRow("Your Name:", self.username_edit)
+        char_layout.addRow("你的名字：", self.username_edit)
 
-        self.use_pack_settings_check = QCheckBox("Use Pack Settings")
-        self.use_pack_settings_check.setToolTip("Override Name, User Name, Prompt and TTS Language with pack defaults.")
+        self.use_pack_settings_check = QCheckBox("使用角色包设置")
+        self.use_pack_settings_check.setToolTip("使用角色包中的名称、用户名、提示词和 TTS 语言覆盖当前设置。")
         char_layout.addRow(self.use_pack_settings_check)
 
-        self.always_on_top_check = QCheckBox("Always on top")
+        self.always_on_top_check = QCheckBox("总在最前")
         char_layout.addRow(self.always_on_top_check)
 
-        self.always_show_ui_check = QCheckBox("Always show (no fade)")
+        self.always_show_ui_check = QCheckBox("始终显示（不淡出）")
         char_layout.addRow(self.always_show_ui_check)
-        
+
         self.global_show_hotkey_edit = QLineEdit()
-        self.global_show_hotkey_edit.setPlaceholderText("e.g. ctrl+alt+0")
-        char_layout.addRow("Show/Focus Hotkey (need restart):", self.global_show_hotkey_edit)
+        self.global_show_hotkey_edit.setPlaceholderText("例如：ctrl+alt+0")
+        char_layout.addRow("显示/聚焦快捷键（需重启）：", self.global_show_hotkey_edit)
 
         icon_layout = QHBoxLayout()
         self.tray_icon_path_edit = QLineEdit()
         icon_layout.addWidget(self.tray_icon_path_edit)
-        browse_icon_btn = QPushButton("Browse")
+        browse_icon_btn = QPushButton("浏览")
         browse_icon_btn.clicked.connect(lambda: self._browse_file(self.tray_icon_path_edit, "Icon Files (*.ico *.png *.jpg)"))
         icon_layout.addWidget(browse_icon_btn)
-        char_layout.addRow("Tray Icon (need restart):", icon_layout)
+        char_layout.addRow("托盘图标（需重启）：", icon_layout)
+
+        self.auto_start_check = QCheckBox("开机自启动")
+        self.auto_start_check.setToolTip("开启后，电脑启动时将自动运行本程序。")
+        char_layout.addRow(self.auto_start_check)
+
+        self.hide_console_check = QCheckBox("隐藏命令行窗口")
+        self.hide_console_check.setToolTip("开启后，运行时不弹出黑色CMD窗口。")
+        char_layout.addRow(self.hide_console_check)
 
         layout.addWidget(char_group)
 
-        thinking_group = QGroupBox("Thinking Text")
+        thinking_group = QGroupBox("思考文字")
         thinking_layout = self._make_form_layout(thinking_group)
 
-        self.thinking_enabled_check = QCheckBox("Enable thinking text")
+        self.thinking_enabled_check = QCheckBox("启用思考文字")
         thinking_layout.addRow(self.thinking_enabled_check)
 
-        self.thinking_switch_check = QCheckBox("Auto-switch thinking text")
+        self.thinking_switch_check = QCheckBox("自动切换思考文字")
         thinking_layout.addRow(self.thinking_switch_check)
 
         self.thinking_time_spin = QDoubleSpinBox()
         self.thinking_time_spin.setRange(0.1, 10.0)
         self.thinking_time_spin.setSingleStep(0.1)
-        self.thinking_time_spin.setSuffix(" sec")
-        thinking_layout.addRow("Show after:", self.thinking_time_spin)
+        self.thinking_time_spin.setSuffix(" 秒")
+        thinking_layout.addRow("显示延迟：", self.thinking_time_spin)
 
         self.thinking_switch_time_spin = QDoubleSpinBox()
         self.thinking_switch_time_spin.setRange(1.0, 30.0)
         self.thinking_switch_time_spin.setSingleStep(0.5)
-        self.thinking_switch_time_spin.setSuffix(" sec")
-        thinking_layout.addRow("Switch interval:", self.thinking_switch_time_spin)
+        self.thinking_switch_time_spin.setSuffix(" 秒")
+        thinking_layout.addRow("切换间隔：", self.thinking_switch_time_spin)
 
         layout.addWidget(thinking_group)
 
-        history_group = QGroupBox("Conversation History")
+        history_group = QGroupBox("对话历史")
         history_layout = self._make_form_layout(history_group)
 
         self.max_rounds_spin = QSpinBox()
         self.max_rounds_spin.setRange(0, 50)
-        self.max_rounds_spin.setSpecialValueText("Disabled")
-        history_layout.addRow("Max rounds:", self.max_rounds_spin)
+        self.max_rounds_spin.setSpecialValueText("禁用")
+        history_layout.addRow("最大轮次：", self.max_rounds_spin)
 
-        self.time_context_check = QCheckBox("Include time context")
+        self.time_context_check = QCheckBox("包含时间上下文")
         history_layout.addRow(self.time_context_check)
 
-        self.ip_context_check = QCheckBox("Include user IP/Location")
+        self.ip_context_check = QCheckBox("包含用户 IP/位置")
         history_layout.addRow(self.ip_context_check)
 
         layout.addWidget(history_group)
@@ -268,94 +276,94 @@ class SettingsDialog(QDialog):
         content_layout.setContentsMargins(10, 10, 10, 10)
 
 
-        size_group = QGroupBox("Window Size")
+        size_group = QGroupBox("窗口大小")
         size_layout = self._make_form_layout(size_group)
 
         self.width_spin = QSpinBox()
         self.width_spin.setRange(100, 2000)
         self.width_spin.setSingleStep(10)
-        size_layout.addRow("Window Width:", self.width_spin)
+        size_layout.addRow("窗口宽度：", self.width_spin)
 
         self.height_spin = QSpinBox()
         self.height_spin.setRange(100, 2000)
         self.height_spin.setSingleStep(10)
-        size_layout.addRow("Window Height:", self.height_spin)
+        size_layout.addRow("窗口高度：", self.height_spin)
 
         content_layout.addWidget(size_group)
 
-        dialogue_size_group = QGroupBox("Dialogue Size")
+        dialogue_size_group = QGroupBox("对话框大小")
         dialogue_size_layout = self._make_form_layout(dialogue_size_group)
 
         self.dialogue_width_spin = QSpinBox()
         self.dialogue_width_spin.setRange(100, 1000)
         self.dialogue_width_spin.setSingleStep(10)
-        dialogue_size_layout.addRow("Dialogue Width:", self.dialogue_width_spin)
+        dialogue_size_layout.addRow("对话框宽度：", self.dialogue_width_spin)
 
         self.dialogue_height_spin = QSpinBox()
         self.dialogue_height_spin.setRange(50, 500)
         self.dialogue_height_spin.setSingleStep(10)
-        dialogue_size_layout.addRow("Dialogue Min Height:", self.dialogue_height_spin)
+        dialogue_size_layout.addRow("对话框最小高度：", self.dialogue_height_spin)
 
         content_layout.addWidget(dialogue_size_group)
 
-        appearance_group = QGroupBox("Appearance")
+        appearance_group = QGroupBox("外观")
         appearance_layout = self._make_form_layout(appearance_group)
 
         self.font_scale_spin = QDoubleSpinBox()
         self.font_scale_spin.setRange(0.5, 3.0)
         self.font_scale_spin.setSingleStep(0.1)
-        appearance_layout.addRow("Font Scale:", self.font_scale_spin)
+        appearance_layout.addRow("字体缩放：", self.font_scale_spin)
 
         self.dialog_color_edit = QLineEdit()
-        self.dialog_color_edit.setPlaceholderText("RGB (0,0,0) or Hex (#000000)")
-        appearance_layout.addRow("Dialog Color:", self.dialog_color_edit)
+        self.dialog_color_edit.setPlaceholderText("RGB (0,0,0) 或十六进制 (#000000)")
+        appearance_layout.addRow("对话框颜色：", self.dialog_color_edit)
 
         self.dialog_opacity_spin = QSpinBox()
         self.dialog_opacity_spin.setRange(0, 100)
         self.dialog_opacity_spin.setSuffix("%")
-        appearance_layout.addRow("Dialog Opacity:", self.dialog_opacity_spin)
+        appearance_layout.addRow("对话框透明度：", self.dialog_opacity_spin)
 
         self.dialog_text_color_edit = QLineEdit()
-        self.dialog_text_color_edit.setPlaceholderText("RGB (255,255,255) or Hex (#FFFFFF)")
-        appearance_layout.addRow("Text Color:", self.dialog_text_color_edit)
+        self.dialog_text_color_edit.setPlaceholderText("RGB (255,255,255) 或十六进制 (#FFFFFF)")
+        appearance_layout.addRow("文字颜色：", self.dialog_text_color_edit)
 
         font_layout = QHBoxLayout()
         self.dialog_font_edit = QLineEdit()
-        self.dialog_font_edit.setPlaceholderText("Leave empty for system default")
+        self.dialog_font_edit.setPlaceholderText("留空则使用系统默认字体")
         font_layout.addWidget(self.dialog_font_edit)
-        browse_font_btn = QPushButton("Browse")
+        browse_font_btn = QPushButton("浏览")
         browse_font_btn.clicked.connect(lambda: self._browse_file(self.dialog_font_edit, "Font Files (*.ttf *.otf)"))
         font_layout.addWidget(browse_font_btn)
-        appearance_layout.addRow("Font File:", font_layout)
+        appearance_layout.addRow("字体文件：", font_layout)
 
         content_layout.addWidget(appearance_group)
 
-        stroke_group = QGroupBox("Text Stroke")
+        stroke_group = QGroupBox("文字描边")
         stroke_layout = self._make_form_layout(stroke_group)
 
-        self.dialog_text_stroke_enabled_check = QCheckBox("Enable Text Stroke")
+        self.dialog_text_stroke_enabled_check = QCheckBox("启用文字描边")
         stroke_layout.addRow(self.dialog_text_stroke_enabled_check)
 
         self.dialog_text_stroke_color_edit = QLineEdit()
-        self.dialog_text_stroke_color_edit.setPlaceholderText("RGB (0,0,0) or Hex (#000000)")
-        stroke_layout.addRow("Stroke Color:", self.dialog_text_stroke_color_edit)
+        self.dialog_text_stroke_color_edit.setPlaceholderText("RGB (0,0,0) 或十六进制 (#000000)")
+        stroke_layout.addRow("描边颜色：", self.dialog_text_stroke_color_edit)
 
         self.dialog_text_stroke_width_spin = QSpinBox()
         self.dialog_text_stroke_width_spin.setRange(0, 10)
         self.dialog_text_stroke_width_spin.setSuffix(" px")
-        stroke_layout.addRow("Stroke Width:", self.dialog_text_stroke_width_spin)
+        stroke_layout.addRow("描边宽度：", self.dialog_text_stroke_width_spin)
 
         content_layout.addWidget(stroke_group)
 
-        shadow_group = QGroupBox("Text Shadow")
+        shadow_group = QGroupBox("文字阴影")
         shadow_layout = self._make_form_layout(shadow_group)
 
-        self.dialog_text_shadow_enabled_check = QCheckBox("Enable Text Shadow")
+        self.dialog_text_shadow_enabled_check = QCheckBox("启用文字阴影")
         shadow_layout.addRow(self.dialog_text_shadow_enabled_check)
 
         self.dialog_text_shadow_color_edit = QLineEdit()
-        self.dialog_text_shadow_color_edit.setPlaceholderText("RGB (0,0,0) or Hex (#000000)")
-        shadow_layout.addRow("Shadow Color:", self.dialog_text_shadow_color_edit)
+        self.dialog_text_shadow_color_edit.setPlaceholderText("RGB (0,0,0) 或十六进制 (#000000)")
+        shadow_layout.addRow("阴影颜色：", self.dialog_text_shadow_color_edit)
 
         shadow_offset_layout = QHBoxLayout()
         self.dialog_text_shadow_offset_x_spin = QSpinBox()
@@ -371,38 +379,38 @@ class SettingsDialog(QDialog):
         shadow_offset_layout.addWidget(QLabel("Y:"))
         shadow_offset_layout.addWidget(self.dialog_text_shadow_offset_y_spin)
         shadow_offset_layout.addStretch()
-        shadow_layout.addRow("Shadow Offset:", shadow_offset_layout)
+        shadow_layout.addRow("阴影偏移：", shadow_offset_layout)
 
         self.dialog_text_shadow_blur_spin = QSpinBox()
         self.dialog_text_shadow_blur_spin.setRange(0, 20)
         self.dialog_text_shadow_blur_spin.setSuffix(" px")
-        shadow_layout.addRow("Shadow Blur:", self.dialog_text_shadow_blur_spin)
+        shadow_layout.addRow("阴影模糊：", self.dialog_text_shadow_blur_spin)
 
         content_layout.addWidget(shadow_group)
 
-        image_group = QGroupBox("Custom Background Image")
+        image_group = QGroupBox("自定义背景图片")
         image_group_layout = self._make_form_layout(image_group)
 
-        self.dialog_use_custom_image_check = QCheckBox("Use Custom Dialog Background Image")
+        self.dialog_use_custom_image_check = QCheckBox("使用自定义对话框背景图片")
         image_group_layout.addRow(self.dialog_use_custom_image_check)
 
         image_path_layout = QHBoxLayout()
         self.dialog_image_path_edit = QLineEdit()
-        self.dialog_image_path_edit.setPlaceholderText("Path to dialog background image")
+        self.dialog_image_path_edit.setPlaceholderText("对话框背景图片路径")
         image_path_layout.addWidget(self.dialog_image_path_edit)
-        browse_image_btn = QPushButton("Browse")
+        browse_image_btn = QPushButton("浏览")
         browse_image_btn.clicked.connect(lambda: self._browse_file(self.dialog_image_path_edit, "Image Files (*.png *.jpg *.jpeg *.bmp *.gif)"))
         image_path_layout.addWidget(browse_image_btn)
-        image_group_layout.addRow("Image Path:", image_path_layout)
+        image_group_layout.addRow("图片路径：", image_path_layout)
 
         self.dialog_image_opacity_spin = QSpinBox()
         self.dialog_image_opacity_spin.setRange(0, 100)
         self.dialog_image_opacity_spin.setSuffix("%")
-        image_group_layout.addRow("Image Opacity:", self.dialog_image_opacity_spin)
+        image_group_layout.addRow("图片透明度：", self.dialog_image_opacity_spin)
 
         content_layout.addWidget(image_group)
 
-        offset_group = QGroupBox("Text Offset")
+        offset_group = QGroupBox("文字偏移")
         offset_layout = self._make_form_layout(offset_group)
 
         header_offset_layout = QHBoxLayout()
@@ -419,7 +427,7 @@ class SettingsDialog(QDialog):
         header_offset_layout.addWidget(QLabel("Y:"))
         header_offset_layout.addWidget(self.header_offset_y_spin)
         header_offset_layout.addStretch()
-        offset_layout.addRow("Header Offset:", header_offset_layout)
+        offset_layout.addRow("标题偏移：", header_offset_layout)
 
         text_offset_layout = QHBoxLayout()
         self.text_offset_x_spin = QSpinBox()
@@ -435,7 +443,7 @@ class SettingsDialog(QDialog):
         text_offset_layout.addWidget(QLabel("Y:"))
         text_offset_layout.addWidget(self.text_offset_y_spin)
         text_offset_layout.addStretch()
-        offset_layout.addRow("Text Area Offset:", text_offset_layout)
+        offset_layout.addRow("文字区域偏移：", text_offset_layout)
 
         content_layout.addWidget(offset_group)
 
@@ -449,35 +457,55 @@ class SettingsDialog(QDialog):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         
-        behavior_group = QGroupBox("Behavior Monitor")
+        behavior_group = QGroupBox("行为监控")
         behavior_layout = self._make_form_layout(behavior_group)
-        
-        self.behavior_enabled_check = QCheckBox("Enable Behavior Monitor")
+
+        self.behavior_enabled_check = QCheckBox("启用行为监控")
         behavior_layout.addRow(self.behavior_enabled_check)
-        
+
         self.behavior_interval_spin = QDoubleSpinBox()
         self.behavior_interval_spin.setRange(0.1, 60.0)
         self.behavior_interval_spin.setSingleStep(0.5)
-        self.behavior_interval_spin.setSuffix(" sec")
-        behavior_layout.addRow("Check Interval:", self.behavior_interval_spin)
-        
-        self.action_bring_to_front_check = QCheckBox("Bring to front on action")
+        self.behavior_interval_spin.setSuffix(" 秒")
+        behavior_layout.addRow("检查间隔：", self.behavior_interval_spin)
+
+        self.action_bring_to_front_check = QCheckBox("触发时置顶显示")
         behavior_layout.addRow(self.action_bring_to_front_check)
-        
+
         self.trigger_cooldown_spin = QDoubleSpinBox()
         self.trigger_cooldown_spin.setRange(0.0, 300.0)
         self.trigger_cooldown_spin.setSingleStep(1.0)
-        self.trigger_cooldown_spin.setSuffix(" sec")
-        behavior_layout.addRow("Global Trigger Cooldown:", self.trigger_cooldown_spin)
-        
+        self.trigger_cooldown_spin.setSuffix(" 秒")
+        behavior_layout.addRow("全局触发冷却：", self.trigger_cooldown_spin)
+
         self.post_busy_delay_spin = QDoubleSpinBox()
         self.post_busy_delay_spin.setRange(0.0, 60.0)
         self.post_busy_delay_spin.setSingleStep(0.5)
-        self.post_busy_delay_spin.setSuffix(" sec")
-        behavior_layout.addRow("Post-Busy Delay:", self.post_busy_delay_spin)
+        self.post_busy_delay_spin.setSuffix(" 秒")
+        behavior_layout.addRow("忙碌后延迟：", self.post_busy_delay_spin)
         
         layout.addWidget(behavior_group)
-        
+
+        screen_watch_group = QGroupBox("识图说话 (ScreenWatch)")
+        screen_watch_layout = self._make_form_layout(screen_watch_group)
+
+        self.screen_watch_enabled_check = QCheckBox("启用识图说话")
+        screen_watch_layout.addRow(self.screen_watch_enabled_check)
+
+        self.screen_watch_interval_spin = QDoubleSpinBox()
+        self.screen_watch_interval_spin.setRange(5.0, 300.0)
+        self.screen_watch_interval_spin.setSingleStep(5.0)
+        self.screen_watch_interval_spin.setSuffix(" 秒")
+        screen_watch_layout.addRow("观察间隔：", self.screen_watch_interval_spin)
+
+        self.screen_watch_cooldown_spin = QDoubleSpinBox()
+        self.screen_watch_cooldown_spin.setRange(0.0, 60.0)
+        self.screen_watch_cooldown_spin.setSingleStep(1.0)
+        self.screen_watch_cooldown_spin.setSuffix(" 秒")
+        screen_watch_layout.addRow("说话后冷却：", self.screen_watch_cooldown_spin)
+
+        layout.addWidget(screen_watch_group)
+
         layout.addStretch()
         return widget
 
@@ -485,15 +513,15 @@ class SettingsDialog(QDialog):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         
-        weather_group = QGroupBox("Weather Configuration")
+        weather_group = QGroupBox("天气配置")
         weather_layout = self._make_form_layout(weather_group)
-        
-        self.weather_enabled_check = QCheckBox("Enable Weather Check")
+
+        self.weather_enabled_check = QCheckBox("启用天气检查")
         weather_layout.addRow(self.weather_enabled_check)
-        
+
         self.weather_api_key_edit = QLineEdit()
         self.weather_api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        weather_layout.addRow("WeatherAPI Key:", self.weather_api_key_edit)
+        weather_layout.addRow("WeatherAPI 密钥：", self.weather_api_key_edit)
         
         layout.addWidget(weather_group)
         layout.addStretch()
@@ -516,7 +544,7 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(widget)
 
 
-        model_group = QGroupBox("Model Selection")
+        model_group = QGroupBox("模型选择")
         model_layout = self._make_form_layout(model_group)
 
         self.model_select_combo = QComboBox()
@@ -527,51 +555,51 @@ class SettingsDialog(QDialog):
             "4: Kimi (Moonshot)",
             "5: Gemini (Google)",
             "6: Grok (xAI)",
-            "7: Qwen (Aliyun)",
+            "7: Qwen (阿里云)",
             "8: GitHub Models",
-            "9: OpenAI Compatible",
+            "9: OpenAI 兼容",
             "10: Zhipu (GLM)"
         ])
         self.model_select_combo.currentIndexChanged.connect(self._on_model_changed)
-        model_layout.addRow("Provider (need restart):", self.model_select_combo)
+        model_layout.addRow("供应商（需重启）：", self.model_select_combo)
 
         self.llm_mode_combo = QComboBox()
         self.llm_mode_combo.addItems(["cloud", "local"])
-        model_layout.addRow("Mode (need restart):", self.llm_mode_combo)
+        model_layout.addRow("模式（需重启）：", self.llm_mode_combo)
 
         layout.addWidget(model_group)
 
 
-        api_group = QGroupBox("API Configuration")
+        api_group = QGroupBox("API 配置")
         api_layout = self._make_form_layout(api_group)
 
         self.api_key_edit = QLineEdit()
         self.api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        api_layout.addRow("API Key (need restart):", self.api_key_edit)
+        api_layout.addRow("API 密钥（需重启）：", self.api_key_edit)
 
         self.base_url_edit = QLineEdit()
-        api_layout.addRow("Base URL (need restart):", self.base_url_edit)
+        api_layout.addRow("Base URL（需重启）：", self.base_url_edit)
 
         self.model_name_edit = QLineEdit()
-        api_layout.addRow("Model Name (need restart):", self.model_name_edit)
+        api_layout.addRow("模型名称（需重启）：", self.model_name_edit)
 
         layout.addWidget(api_group)
 
 
-        prompt_group = QGroupBox("Prompt")
+        prompt_group = QGroupBox("提示词")
         prompt_layout = self._make_form_layout(prompt_group)
 
         self.prompt_source_combo = QComboBox()
         self.prompt_source_combo.addItems(["file", "text"])
-        prompt_layout.addRow("Source:", self.prompt_source_combo)
+        prompt_layout.addRow("来源：", self.prompt_source_combo)
 
         prompt_file_layout = QHBoxLayout()
         self.prompt_file_edit = QLineEdit()
         prompt_file_layout.addWidget(self.prompt_file_edit)
-        browse_btn = QPushButton("Browse")
+        browse_btn = QPushButton("浏览")
         browse_btn.clicked.connect(self._browse_prompt_file)
         prompt_file_layout.addWidget(browse_btn)
-        prompt_layout.addRow("File:", prompt_file_layout)
+        prompt_layout.addRow("文件：", prompt_file_layout)
 
         layout.addWidget(prompt_group)
 
@@ -584,53 +612,53 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(widget)
 
 
-        self.tts_enabled_check = QCheckBox("Enable TTS (GPT-SoVITS)")
+        self.tts_enabled_check = QCheckBox("启用 TTS (GPT-SoVITS)")
         layout.addWidget(self.tts_enabled_check)
 
 
-        tts_group = QGroupBox("TTS Configuration")
+        tts_group = QGroupBox("TTS 配置")
         tts_layout = self._make_form_layout(tts_group)
 
         self.tts_device_combo = QComboBox()
         self.tts_device_combo.addItems(["cuda", "cpu"])
-        tts_layout.addRow("Device (need restart):", self.tts_device_combo)
+        tts_layout.addRow("设备（需重启）：", self.tts_device_combo)
 
         self.tts_temperature_spin = QDoubleSpinBox()
         self.tts_temperature_spin.setRange(0.01, 1.0)
         self.tts_temperature_spin.setSingleStep(0.05)
-        tts_layout.addRow("Temperature:", self.tts_temperature_spin)
+        tts_layout.addRow("温度：", self.tts_temperature_spin)
 
         self.tts_top_p_spin = QDoubleSpinBox()
         self.tts_top_p_spin.setRange(0.1, 1.0)
         self.tts_top_p_spin.setSingleStep(0.05)
-        tts_layout.addRow("Top P:", self.tts_top_p_spin)
+        tts_layout.addRow("Top P：", self.tts_top_p_spin)
 
         self.tts_top_k_spin = QSpinBox()
         self.tts_top_k_spin.setRange(1, 200)
-        tts_layout.addRow("Top K:", self.tts_top_k_spin)
+        tts_layout.addRow("Top K：", self.tts_top_k_spin)
 
         self.tts_speed_spin = QDoubleSpinBox()
         self.tts_speed_spin.setRange(0.5, 2.0)
         self.tts_speed_spin.setSingleStep(0.1)
-        tts_layout.addRow("Speed:", self.tts_speed_spin)
+        tts_layout.addRow("语速：", self.tts_speed_spin)
 
         self.tts_text_split_combo = QComboBox()
         self.tts_text_split_combo.addItems(["cut0", "cut1", "cut2", "cut3", "cut4", "cut5"])
-        tts_layout.addRow("Text Split Method:", self.tts_text_split_combo)
+        tts_layout.addRow("文本切分方式：", self.tts_text_split_combo)
 
         self.tts_fragment_interval_spin = QDoubleSpinBox()
         self.tts_fragment_interval_spin.setRange(0.0, 5.0)
         self.tts_fragment_interval_spin.setSingleStep(0.05)
-        self.tts_fragment_interval_spin.setSuffix(" sec")
-        tts_layout.addRow("Fragment Interval:", self.tts_fragment_interval_spin)
+        self.tts_fragment_interval_spin.setSuffix(" 秒")
+        tts_layout.addRow("片段间隔：", self.tts_fragment_interval_spin)
 
         model_dir_layout = QHBoxLayout()
         self.tts_model_dir_edit = QLineEdit()
         model_dir_layout.addWidget(self.tts_model_dir_edit)
-        browse_btn = QPushButton("Browse")
+        browse_btn = QPushButton("浏览")
         browse_btn.clicked.connect(lambda: self._browse_directory(self.tts_model_dir_edit))
         model_dir_layout.addWidget(browse_btn)
-        tts_layout.addRow("Model Dir (need restart):", model_dir_layout)
+        tts_layout.addRow("模型目录（需重启）：", model_dir_layout)
 
         layout.addWidget(tts_group)
         layout.addStretch()
@@ -642,39 +670,39 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(widget)
 
 
-        self.stt_enabled_check = QCheckBox("Enable STT (Sherpa-ONNX)")
+        self.stt_enabled_check = QCheckBox("启用 STT (Sherpa-ONNX)")
         layout.addWidget(self.stt_enabled_check)
 
 
-        stt_group = QGroupBox("STT Configuration")
+        stt_group = QGroupBox("STT 配置")
         stt_layout = self._make_form_layout(stt_group)
 
         self.stt_hotkey_edit = QLineEdit()
-        stt_layout.addRow("Hotkey (need restart):", self.stt_hotkey_edit)
+        stt_layout.addRow("快捷键（需重启）：", self.stt_hotkey_edit)
 
         self.stt_language_combo = QComboBox()
         self.stt_language_combo.addItems(["auto", "zh", "en", "ja", "ko", "yue"])
-        stt_layout.addRow("Fixed Language:", self.stt_language_combo)
+        stt_layout.addRow("固定语言：", self.stt_language_combo)
 
         self.stt_silence_spin = QDoubleSpinBox()
         self.stt_silence_spin.setRange(0.5, 5.0)
         self.stt_silence_spin.setSingleStep(0.1)
-        self.stt_silence_spin.setSuffix(" sec")
-        stt_layout.addRow("Silence threshold:", self.stt_silence_spin)
+        self.stt_silence_spin.setSuffix(" 秒")
+        stt_layout.addRow("静默阈值：", self.stt_silence_spin)
 
         self.stt_max_duration_spin = QDoubleSpinBox()
         self.stt_max_duration_spin.setRange(1.0, 30.0)
         self.stt_max_duration_spin.setSingleStep(0.5)
-        self.stt_max_duration_spin.setSuffix(" sec")
-        stt_layout.addRow("Max duration:", self.stt_max_duration_spin)
+        self.stt_max_duration_spin.setSuffix(" 秒")
+        stt_layout.addRow("最大时长：", self.stt_max_duration_spin)
 
         model_dir_layout = QHBoxLayout()
         self.stt_model_dir_edit = QLineEdit()
         model_dir_layout.addWidget(self.stt_model_dir_edit)
-        browse_btn = QPushButton("Browse")
+        browse_btn = QPushButton("浏览")
         browse_btn.clicked.connect(lambda: self._browse_directory(self.stt_model_dir_edit))
         model_dir_layout.addWidget(browse_btn)
-        stt_layout.addRow("Model Dir (need restart):", model_dir_layout)
+        stt_layout.addRow("模型目录（需重启）：", model_dir_layout)
 
         layout.addWidget(stt_group)
         layout.addStretch()
@@ -685,45 +713,45 @@ class SettingsDialog(QDialog):
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
-        self.ocr_enabled_check = QCheckBox("Enable OCR")
+        self.ocr_enabled_check = QCheckBox("启用 OCR")
         layout.addWidget(self.ocr_enabled_check)
 
-        self.ocr_vlm_enabled_check = QCheckBox("Enable VLM Image Capture")
+        self.ocr_vlm_enabled_check = QCheckBox("启用 VLM 截图")
         layout.addWidget(self.ocr_vlm_enabled_check)
 
-        ocr_group = QGroupBox("OCR Configuration")
+        ocr_group = QGroupBox("OCR 配置")
         ocr_layout = self._make_form_layout(ocr_group)
 
         self.ocr_provider_combo = QComboBox()
         self.ocr_provider_combo.addItems(["tencent", "baidu"])
-        ocr_layout.addRow("Provider:", self.ocr_provider_combo)
+        ocr_layout.addRow("供应商：", self.ocr_provider_combo)
 
-        self.ocr_include_process_check = QCheckBox("Include process names and window titles")
+        self.ocr_include_process_check = QCheckBox("包含进程名和窗口标题")
         ocr_layout.addRow(self.ocr_include_process_check)
 
         self.ocr_sentence_limit_spin = QSpinBox()
         self.ocr_sentence_limit_spin.setRange(0, 20)
-        self.ocr_sentence_limit_spin.setToolTip("0 to disable the limit note")
-        ocr_layout.addRow("Response Sentence Limit:", self.ocr_sentence_limit_spin)
+        self.ocr_sentence_limit_spin.setToolTip("0 表示禁用限制")
+        ocr_layout.addRow("回复句子数限制：", self.ocr_sentence_limit_spin)
 
         self.ocr_baidu_api_key_edit = QLineEdit()
         self.ocr_baidu_api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.ocr_baidu_api_key_label = QLabel("Baidu API Key:")
+        self.ocr_baidu_api_key_label = QLabel("百度 API 密钥：")
         ocr_layout.addRow(self.ocr_baidu_api_key_label, self.ocr_baidu_api_key_edit)
 
         self.ocr_baidu_secret_key_edit = QLineEdit()
         self.ocr_baidu_secret_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.ocr_baidu_secret_key_label = QLabel("Baidu Secret Key:")
+        self.ocr_baidu_secret_key_label = QLabel("百度 Secret 密钥：")
         ocr_layout.addRow(self.ocr_baidu_secret_key_label, self.ocr_baidu_secret_key_edit)
 
         self.ocr_tencent_secret_id_edit = QLineEdit()
         self.ocr_tencent_secret_id_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.ocr_tencent_secret_id_label = QLabel("Tencent Secret ID:")
+        self.ocr_tencent_secret_id_label = QLabel("腾讯 Secret ID：")
         ocr_layout.addRow(self.ocr_tencent_secret_id_label, self.ocr_tencent_secret_id_edit)
 
         self.ocr_tencent_secret_key_edit = QLineEdit()
         self.ocr_tencent_secret_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.ocr_tencent_secret_key_label = QLabel("Tencent Secret Key:")
+        self.ocr_tencent_secret_key_label = QLabel("腾讯 Secret 密钥：")
         ocr_layout.addRow(self.ocr_tencent_secret_key_label, self.ocr_tencent_secret_key_edit)
 
         self.ocr_provider_combo.currentIndexChanged.connect(self._on_ocr_provider_changed)
@@ -737,87 +765,87 @@ class SettingsDialog(QDialog):
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
-        self.physics_enabled_check = QCheckBox("Enable Physics")
+        self.physics_enabled_check = QCheckBox("启用物理引擎")
         layout.addWidget(self.physics_enabled_check)
 
-        physics_group = QGroupBox("Physics Configuration")
+        physics_group = QGroupBox("物理配置")
         physics_layout = self._make_form_layout(physics_group)
 
         self.physics_refresh_rate_spin = QSpinBox()
         self.physics_refresh_rate_spin.setRange(0, 240)
-        self.physics_refresh_rate_spin.setSpecialValueText("Auto")
-        physics_layout.addRow("Refresh Rate (0 = Auto):", self.physics_refresh_rate_spin)
+        self.physics_refresh_rate_spin.setSpecialValueText("自动")
+        physics_layout.addRow("刷新率（0=自动）：", self.physics_refresh_rate_spin)
 
-        self.physics_gravity_enabled_check = QCheckBox("Enable Gravity")
+        self.physics_gravity_enabled_check = QCheckBox("启用重力")
         physics_layout.addRow(self.physics_gravity_enabled_check)
 
         self.physics_gravity_spin = QDoubleSpinBox()
         self.physics_gravity_spin.setRange(-5000.0, 5000.0)
         self.physics_gravity_spin.setSingleStep(10.0)
-        physics_layout.addRow("Gravity Strength:", self.physics_gravity_spin)
+        physics_layout.addRow("重力强度：", self.physics_gravity_spin)
 
-        self.physics_accel_enabled_check = QCheckBox("Enable Acceleration")
+        self.physics_accel_enabled_check = QCheckBox("启用加速度")
         physics_layout.addRow(self.physics_accel_enabled_check)
 
         self.physics_accel_x_spin = QDoubleSpinBox()
         self.physics_accel_x_spin.setRange(-5000.0, 5000.0)
         self.physics_accel_x_spin.setSingleStep(10.0)
-        physics_layout.addRow("Acceleration X:", self.physics_accel_x_spin)
+        physics_layout.addRow("加速度 X：", self.physics_accel_x_spin)
 
         self.physics_accel_y_spin = QDoubleSpinBox()
         self.physics_accel_y_spin.setRange(-5000.0, 5000.0)
         self.physics_accel_y_spin.setSingleStep(10.0)
-        physics_layout.addRow("Acceleration Y:", self.physics_accel_y_spin)
+        physics_layout.addRow("加速度 Y：", self.physics_accel_y_spin)
 
-        self.physics_invert_forces_check = QCheckBox("Invert Gravity & Acceleration")
+        self.physics_invert_forces_check = QCheckBox("反转重力与加速度")
         physics_layout.addRow(self.physics_invert_forces_check)
 
-        self.physics_friction_enabled_check = QCheckBox("Enable Friction")
+        self.physics_friction_enabled_check = QCheckBox("启用摩擦力")
         physics_layout.addRow(self.physics_friction_enabled_check)
 
         self.physics_friction_spin = QDoubleSpinBox()
         self.physics_friction_spin.setRange(0.0, 1.0)
         self.physics_friction_spin.setSingleStep(0.01)
-        physics_layout.addRow("Friction (0-1):", self.physics_friction_spin)
+        physics_layout.addRow("摩擦力 (0-1)：", self.physics_friction_spin)
 
-        self.physics_bounce_enabled_check = QCheckBox("Enable Bounce")
+        self.physics_bounce_enabled_check = QCheckBox("启用弹跳")
         physics_layout.addRow(self.physics_bounce_enabled_check)
 
         self.physics_elasticity_spin = QDoubleSpinBox()
         self.physics_elasticity_spin.setRange(0.0, 1.0)
         self.physics_elasticity_spin.setSingleStep(0.05)
-        physics_layout.addRow("Bounce Elasticity:", self.physics_elasticity_spin)
+        physics_layout.addRow("弹跳弹性：", self.physics_elasticity_spin)
 
         self.physics_max_speed_spin = QDoubleSpinBox()
         self.physics_max_speed_spin.setRange(0.0, 10000.0)
         self.physics_max_speed_spin.setSingleStep(50.0)
-        physics_layout.addRow("Max Speed (0 = No Limit):", self.physics_max_speed_spin)
+        physics_layout.addRow("最大速度（0=无限制）：", self.physics_max_speed_spin)
 
         self.physics_drag_velocity_multiplier_spin = QDoubleSpinBox()
         self.physics_drag_velocity_multiplier_spin.setRange(0.0, 10.0)
         self.physics_drag_velocity_multiplier_spin.setSingleStep(0.1)
-        physics_layout.addRow("Drag Velocity Multiplier:", self.physics_drag_velocity_multiplier_spin)
+        physics_layout.addRow("拖拽速度倍率：", self.physics_drag_velocity_multiplier_spin)
 
         self.physics_drag_velocity_max_spin = QDoubleSpinBox()
         self.physics_drag_velocity_max_spin.setRange(0.0, 10000.0)
         self.physics_drag_velocity_max_spin.setSingleStep(50.0)
-        physics_layout.addRow("Drag Velocity Max (0 = No Limit):", self.physics_drag_velocity_max_spin)
+        physics_layout.addRow("拖拽速度上限（0=无限制）：", self.physics_drag_velocity_max_spin)
 
-        self.physics_collide_windows_check = QCheckBox("Collide With Other Windows")
+        self.physics_collide_windows_check = QCheckBox("与其他窗口碰撞")
         physics_layout.addRow(self.physics_collide_windows_check)
 
-        self.physics_ignore_maximized_check = QCheckBox("Ignore Maximized Windows")
+        self.physics_ignore_maximized_check = QCheckBox("忽略最大化窗口")
         physics_layout.addRow(self.physics_ignore_maximized_check)
 
-        self.physics_ignore_fullscreen_check = QCheckBox("Ignore Fullscreen Windows")
+        self.physics_ignore_fullscreen_check = QCheckBox("忽略全屏窗口")
         physics_layout.addRow(self.physics_ignore_fullscreen_check)
 
-        self.physics_ignore_borderless_check = QCheckBox("Ignore Borderless Fullscreen Windows")
+        self.physics_ignore_borderless_check = QCheckBox("忽略无边框全屏窗口")
         physics_layout.addRow(self.physics_ignore_borderless_check)
 
         self.physics_screen_padding_spin = QSpinBox()
         self.physics_screen_padding_spin.setRange(-200, 200)
-        physics_layout.addRow("Screen Padding:", self.physics_screen_padding_spin)
+        physics_layout.addRow("屏幕边距：", self.physics_screen_padding_spin)
 
         layout.addWidget(physics_group)
         layout.addStretch()
@@ -833,6 +861,8 @@ class SettingsDialog(QDialog):
         self.always_show_ui_check.setChecked(self.config.always_show_ui)
         self.global_show_hotkey_edit.setText(self.config.global_show_hotkey)
         self.tray_icon_path_edit.setText(self.config.get("General", "tray_icon_path", ""))
+        self.auto_start_check.setChecked(self.config.auto_start_on_boot)
+        self.hide_console_check.setChecked(self.config.hide_console_window)
 
         self.thinking_enabled_check.setChecked(self.config.thinking_text_enabled)
         self.thinking_switch_check.setChecked(self.config.thinking_text_switch)
@@ -872,7 +902,11 @@ class SettingsDialog(QDialog):
         self.action_bring_to_front_check.setChecked(self.config.action_bring_to_front)
         self.trigger_cooldown_spin.setValue(self.config.trigger_cooldown)
         self.post_busy_delay_spin.setValue(self.config.post_busy_delay)
-        
+
+        self.screen_watch_enabled_check.setChecked(self.config.screen_watch_enabled)
+        self.screen_watch_interval_spin.setValue(self.config.screen_watch_interval)
+        self.screen_watch_cooldown_spin.setValue(self.config.screen_watch_cooldown)
+
         self.weather_enabled_check.setChecked(self.config.weather_enabled)
         self.weather_api_key_edit.setText(self.config.weather_api_key)
 
@@ -1020,7 +1054,9 @@ class SettingsDialog(QDialog):
             self.config.set("General", "always_show_ui", str(self.always_show_ui_check.isChecked()).lower())
             self.config.set("General", "global_show_hotkey", self.global_show_hotkey_edit.text())
             self.config.set("General", "tray_icon_path", self.tray_icon_path_edit.text())
-            
+            self.config.set("General", "auto_start_on_boot", str(self.auto_start_check.isChecked()).lower())
+            self.config.set("General", "hide_console_window", str(self.hide_console_check.isChecked()).lower())
+
             self.config.set("General", "ThinkingText", str(self.thinking_enabled_check.isChecked()).lower())
             self.config.set("General", "ThinkingTextSwitch", str(self.thinking_switch_check.isChecked()).lower())
             self.config.set("General", "ThinkingTextTime", str(self.thinking_time_spin.value()))
@@ -1059,6 +1095,10 @@ class SettingsDialog(QDialog):
             self.config.set("Behavior", "action_bring_to_front", str(self.action_bring_to_front_check.isChecked()).lower())
             self.config.set("Behavior", "trigger_cooldown", str(self.trigger_cooldown_spin.value()))
             self.config.set("Behavior", "post_busy_delay", str(self.post_busy_delay_spin.value()))
+
+            self.config.set("ScreenWatch", "enabled", str(self.screen_watch_enabled_check.isChecked()).lower())
+            self.config.set("ScreenWatch", "interval", str(self.screen_watch_interval_spin.value()))
+            self.config.set("ScreenWatch", "cooldown", str(self.screen_watch_cooldown_spin.value()))
             
             self.config.set("Weather", "enabled", str(self.weather_enabled_check.isChecked()).lower())
             self.config.set("Weather", "api_key", self.weather_api_key_edit.text())

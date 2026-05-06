@@ -10,7 +10,7 @@
 - **Python 3.12** (如果您不打算使用 `setup.ps1` 的 Full Runtime 模式)。
 
 ## 1. 安装
-1. **克隆仓库**：`git clone https://github.com/JodieRuth/Resona-Desktop-Pet.git`
+1. **克隆仓库**：`git clone https://github.com/mofu312/Resona-Desktop-Pet.git`
 2. **环境配置**：
    - 右键点击 `setup.ps1`，选择 **"使用 PowerShell 运行"**。
    - **方案 2 (推荐)**：为您创建一个独立的 Runtime 环境，不影响系统 Python。
@@ -72,4 +72,4 @@
 - 想要调试触发器？在 `config.cfg` 中设置 `debugtrigger = true`，然后运行 `tools/sensor_mocker.py`。
 
 ---
-本文档部分使用大语言模型辅助生成，翻译亦由大语言模型完成，如出现任何偏差不代表作者的真实意愿。
+本文档部分使用大语言模型辅助生成。

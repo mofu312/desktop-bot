@@ -18,10 +18,11 @@ def convert_to_wav(input_path: str, output_path: str, target_sr: int = 16000) ->
         ]
         
         result = subprocess.run(
-            cmd, 
-            stdout=subprocess.PIPE, 
+            cmd,
+            stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            check=False
+            check=False,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
         )
         
         if result.returncode != 0:

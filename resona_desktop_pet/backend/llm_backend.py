@@ -95,6 +95,9 @@ class LLMBackend:
         self._ip_context = None
         self._last_ip_fetch_time = 0
         self._on_activity_callback = None
+        self._vision_llm_config = None
+        if hasattr(config, 'get_vision_llm_config'):
+            self._vision_llm_config = config.get_vision_llm_config()
         
         if config.enable_ip_context:
             import threading
@@ -364,6 +367,7 @@ class LLMBackend:
             if sentence_limit > 0:
                 question_blocks.append(f"Note: Keep your response under {sentence_limit} sentences and maintain your persona.")
         question_blocks.append(question)
+        question_blocks.append("[IMPORTANT] You MUST respond in valid JSON. ONLY output the JSON object, nothing else.")
         processed_question = "\n".join(question_blocks)
 
         target_history = history if history is not None else self.history
@@ -398,8 +402,6 @@ class LLMBackend:
     def _normalize_model_name(self, model_type: Any, model_name: str) -> str:
         if not model_name:
             return model_name
-        if "/" in model_name:
-            return model_name
         provider = None
         if model_type == "local":
             provider = "openai"
@@ -417,7 +419,12 @@ class LLMBackend:
             provider = "xai"
         elif model_type in [7, 8, 9, 10]:
             provider = "openai"
+        elif model_type == "vision":
+            provider = "openai"
         if provider:
+            # If model name already has the correct provider prefix, return as-is
+            if f"{provider}/" in model_name:
+                return model_name
             return f"{provider}/{model_name}"
         return model_name
 
@@ -614,7 +621,7 @@ class LLMBackend:
             return None
         return "\n\n".join(blocks)
 
-    def _parse_response(self, text: str) -> LLMResponse:
+    async def _parse_response(self, text: str) -> LLMResponse:
         response = LLMResponse(raw_response=text)
         logger.info(f"Raw response from API: {text}")
 
@@ -623,7 +630,7 @@ class LLMBackend:
             match = re.search(r"```(?:json)?\s*(.*?)\s*```", json_str, re.DOTALL)
             if match:
                 json_str = match.group(1).strip()
-        
+
         if not json_str.startswith("{"):
             match = re.search(r"({.*})", json_str, re.DOTALL)
             if match:
@@ -635,9 +642,27 @@ class LLMBackend:
             response.text_display = data.get("text_display", "")
             response.text_tts = data.get("text_tts", response.text_display)
             return response
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON Parse Error: {e} | Candidate: {json_str}")
-            response.error = f"JSON parsing failed: {str(e)}"
+        except json.JSONDecodeError:
+            # Try regex extraction for key fields (LLM sometimes outputs unescaped quotes)
+            tts_match = re.search(r'"text_tts"\s*:\s*"((?:[^"\\]|\\.)*)"', json_str, re.DOTALL)
+            if tts_match:
+                response.text_tts = tts_match.group(1)
+            emotion_match = re.search(r'"emotion"\s*:\s*"([^"]+)"', json_str, re.DOTALL)
+            if emotion_match:
+                response.emotion = emotion_match.group(1)
+            display_match = re.search(r'"text_display"\s*:\s*"((?:[^"\\]|\\.)*)"', json_str, re.DOTALL)
+            if display_match:
+                response.text_display = display_match.group(1)
+
+            if not response.text_display:
+                # Clean stage directions like （将视线移回屏幕上，语气慵懒）
+                cleaned = re.sub(r'[（(][^）)]{5,60}[）)]', '', json_str)
+                cleaned = re.sub(r'[（(][^）)]*语气[^）)]*[）)]', '', cleaned)
+                cleaned = cleaned.strip()
+                response.text_display = cleaned or json_str
+            if not response.text_tts:
+                response.text_tts = ""
+            logger.warning(f"JSON parse failed, tts={bool(response.text_tts)} display={response.text_display[:50]}")
             return response
 
     def _log_interaction(self, request_data: Any, response_raw: str, usage_stats: Optional[Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]] = None):
@@ -799,7 +824,9 @@ class LLMBackend:
         tool_choice: Optional[str] = None,
         temperature: float = 0.7,
         top_p: float = 1.0,
-        max_tokens: int = 500
+        max_tokens: int = 500,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None
     ) -> Tuple[Any, str, str, List[Any]]:
         resolved_model = self._normalize_model_name(model_type, model_name)
         if "gemini-3" in resolved_model.lower() and temperature < 1.0:
@@ -812,25 +839,34 @@ class LLMBackend:
             "top_p": top_p,
             "max_tokens": max_tokens
         }
+        if frequency_penalty is not None:
+            request_payload["frequency_penalty"] = frequency_penalty
+        if presence_penalty is not None:
+            request_payload["presence_penalty"] = presence_penalty
         if base_url:
             request_payload["base_url"] = base_url
         if tools:
             request_payload["tools"] = tools
             if tool_choice:
                 request_payload["tool_choice"] = tool_choice
-        
+
         logger_info.info(f"[LLM] Sending request to {resolved_model}")
-        response = await acompletion(
-            model=resolved_model,
-            messages=messages,
-            temperature=temperature,
-            top_p=top_p,
-            max_tokens=max_tokens,
-            api_key=api_key or None,
-            base_url=base_url or None,
-            tools=tools or None,
-            tool_choice=tool_choice or None
-        )
+        kwargs = {
+            "model": resolved_model,
+            "messages": messages,
+            "temperature": temperature,
+            "top_p": top_p,
+            "max_tokens": max_tokens,
+            "api_key": api_key or None,
+            "base_url": base_url or None,
+            "tools": tools or None,
+            "tool_choice": tool_choice or None,
+        }
+        if frequency_penalty is not None:
+            kwargs["frequency_penalty"] = frequency_penalty
+        if presence_penalty is not None:
+            kwargs["presence_penalty"] = presence_penalty
+        response = await acompletion(**kwargs)
         prompt_tokens, completion_tokens, total_tokens, cached_tokens = self._extract_usage_stats(response)
         if prompt_tokens is not None or completion_tokens is not None or total_tokens is not None or cached_tokens is not None:
             logger_info.info(f"Token usage: prompt={prompt_tokens} completion={completion_tokens} total={total_tokens} cached={cached_tokens}")
@@ -859,7 +895,9 @@ class LLMBackend:
         base_url: str,
         temperature: float = 0.7,
         top_p: float = 1.0,
-        max_tokens: int = 500
+        max_tokens: int = 500,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None
     ) -> LLMResponse:
         try:
             self._notify_activity()
@@ -873,13 +911,15 @@ class LLMBackend:
                 tool_choice=None,
                 temperature=temperature,
                 top_p=top_p,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                frequency_penalty=frequency_penalty,
+                presence_penalty=presence_penalty
             )
             self._notify_activity() 
             if not raw_text:
                 return LLMResponse(error="Empty response from LLM", thought=reasoning)
 
-            llm_resp = self._parse_response(raw_text)
+            llm_resp = await self._parse_response(raw_text)
             llm_resp.thought = reasoning
             return llm_resp
         except Exception as e:
@@ -1008,7 +1048,9 @@ class LLMBackend:
         top_p: float = 1.0,
         max_tokens: int = 500,
         pack_id: Optional[str] = None,
-        original_question: str = ""
+        original_question: str = "",
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None
     ) -> LLMResponse:
         attempted_retry = False
         if max_tool_rounds <= 0:
@@ -1041,9 +1083,11 @@ class LLMBackend:
                 tool_choice="auto",
                 temperature=temperature,
                 top_p=top_p,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                frequency_penalty=frequency_penalty,
+                presence_penalty=presence_penalty
             )
-            self._notify_activity() 
+            self._notify_activity()
 
             if tool_calls:
                 serializable_tool_calls = []
@@ -1103,7 +1147,7 @@ class LLMBackend:
                 continue
 
             if raw_text:
-                llm_resp = self._parse_response(raw_text)
+                llm_resp = await self._parse_response(raw_text)
                 llm_resp.thought = reasoning
                 if not llm_resp.error:
                     return llm_resp
@@ -1123,6 +1167,35 @@ class LLMBackend:
             return LLMResponse(error="Empty response from LLM")
 
         return LLMResponse(error=f"Tool call exceeded max rounds ({max_tool_rounds})")
+
+    async def _describe_image_with_vision_model(self, image_base64: str) -> Optional[str]:
+        """Send screenshot to the dedicated vision model and return a text description."""
+        vcfg = self._vision_llm_config
+        if not vcfg:
+            return None
+        try:
+            image_url = f"data:image/png;base64,{image_base64}"
+            messages = [
+                {"role": "system", "content": "You are a screen observer. Describe what you see on the screen concisely in 1-3 sentences. Focus on visible content like applications, windows, text, images, and user activity."},
+                {"role": "user", "content": [
+                    {"type": "text", "text": "What's on this user's screen right now? Be concise."},
+                    {"type": "image_url", "image_url": {"url": image_url}}
+                ]}
+            ]
+            _, raw_text, reasoning, _ = await self._call_litellm_raw(
+                messages,
+                vcfg["model_name"],
+                vcfg["model_type"],
+                vcfg["api_key"],
+                vcfg.get("base_url", ""),
+                temperature=0.5,
+                max_tokens=256
+            )
+            if raw_text:
+                return raw_text.strip()
+        except Exception as e:
+            logger.warning(f"[LLM] Vision model description failed: {e}")
+        return None
 
     async def query(self, question: str, history: Optional[ConversationHistory] = None, extra_context: Optional[str] = None, pack_id: Optional[str] = None, source: str = "desktop") -> LLMResponse:
         llm_config = self.config.get_llm_config()
@@ -1153,6 +1226,14 @@ class LLMBackend:
                         image_base64 = None
                     except Exception:
                         image_base64 = None
+
+                    # Dedicated vision model: describe screen → inject text, don't send raw image to main model
+                    if image_base64 and self._vision_llm_config is not None:
+                        vision_desc = await self._describe_image_with_vision_model(image_base64)
+                        if vision_desc:
+                            ocr_context = (ocr_context + "\n\n" if ocr_context else "") + f"[Screen Observation]\n{vision_desc}"
+                            logger_info.info(f"[LLM] Vision model described screen: {vision_desc[:100]}...")
+                        image_base64 = None  # description extracted, no raw image for main model
 
             openai_compatible = model_type == "local" or model_type in [1, 2, 4, 6, 7, 8, 9, 10]
             image_capable = openai_compatible or model_type in [3, 5]
@@ -1199,6 +1280,8 @@ class LLMBackend:
                         temperature=llm_config.get("temperature", 0.7),
                         top_p=llm_config.get("top_p", 1.0),
                         max_tokens=llm_config.get("max_tokens", 500),
+                        frequency_penalty=llm_config.get("frequency_penalty"),
+                        presence_penalty=llm_config.get("presence_penalty"),
                         pack_id=pack_id,
                         original_question=question
                     )
@@ -1211,7 +1294,9 @@ class LLMBackend:
                         base_url,
                         temperature=llm_config.get("temperature", 0.7),
                         top_p=llm_config.get("top_p", 1.0),
-                        max_tokens=llm_config.get("max_tokens", 500)
+                        max_tokens=llm_config.get("max_tokens", 500),
+                        frequency_penalty=llm_config.get("frequency_penalty"),
+                        presence_penalty=llm_config.get("presence_penalty")
                     )
             else:
                 response = LLMResponse(error=f"Unsupported model type: {model_type}")
@@ -1237,13 +1322,27 @@ class LLMBackend:
 
         return response
 
-    async def query_idle(self, question: str, pack_id: Optional[str] = None) -> LLMResponse:
-        llm_config = self.config.get_llm_config()
-        model_type = llm_config["model_type"]
-        model_name = llm_config["model_name"]
-        api_key = llm_config["api_key"]
-        base_url = llm_config.get("base_url", "")
-        
+    async def query_idle(self, question: str, pack_id: Optional[str] = None, include_screenshot: bool = False) -> LLMResponse:
+        # Use vision model for screenshot requests if configured
+        if include_screenshot and self._vision_llm_config is not None:
+            vcfg = self._vision_llm_config
+            model_type = vcfg["model_type"]
+            model_name = vcfg["model_name"]
+            api_key = vcfg["api_key"]
+            base_url = vcfg.get("base_url", "")
+            temperature = vcfg.get("temperature", 0.7)
+            top_p = vcfg.get("top_p", 1.0)
+            max_tokens = vcfg.get("max_tokens", 512)
+        else:
+            llm_cfg = self.config.get_llm_config()
+            model_type = llm_cfg["model_type"]
+            model_name = llm_cfg["model_name"]
+            api_key = llm_cfg["api_key"]
+            base_url = llm_cfg.get("base_url", "")
+            temperature = llm_cfg.get("temperature", 0.7)
+            top_p = llm_cfg.get("top_p", 1.0)
+            max_tokens = llm_cfg.get("max_tokens", 500)
+
         current_signature = (model_type, model_name, api_key, base_url)
         if current_signature != self._active_model_signature:
             self.reconnect()
@@ -1256,16 +1355,30 @@ class LLMBackend:
                 extra_context_parts.append(f"[Current IP] {self._ip_context}")
             extra_context = "\n".join(extra_context_parts) if extra_context_parts else None
 
+            # Determine if this model supports images
+            openai_compatible = model_type == "local" or model_type in [1, 2, 4, 6, 7, 8, 9, 10]
+            image_capable = openai_compatible or model_type in [3, 5] or model_type == "vision"
+
+            image_base64 = None
+            if include_screenshot and image_capable:
+                try:
+                    image_base64 = await asyncio.wait_for(
+                        asyncio.to_thread(self._prepare_image_base64),
+                        timeout=10
+                    )
+                except:
+                    pass
+
             messages = self._build_messages(question, extra_context=extra_context, history=None, pack_id=pack_id, source="idle_trigger")
+            if image_base64:
+                image_url = f"data:image/png;base64,{image_base64}"
+                messages[-1]["content"] = [
+                    {"type": "text", "text": messages[-1]["content"]},
+                    {"type": "image_url", "image_url": {"url": image_url}}
+                ]
             processed_question = self._extract_text_content(messages[-1]["content"])
 
-            tools: List[Dict[str, Any]] = []
-            max_tool_rounds = 0
-            if self._mcp_manager and self.config.memory_enabled:
-                tools = self._mcp_manager.get_memory_tools_only(pack_id)
-                max_tool_rounds = 8  
-
-            supported_types = {"local", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+            supported_types = {"local", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, "vision"}
             if model_type in supported_types:
                 response = await self._query_litellm(
                     messages,
@@ -1273,11 +1386,11 @@ class LLMBackend:
                     model_type,
                     api_key,
                     base_url,
-                    temperature=llm_config.get("temperature", 0.7),
-                    top_p=llm_config.get("top_p", 1.0),
-                    max_tokens=llm_config.get("max_tokens", 500),
-                    tools=tools if tools else None,
-                    max_tool_rounds=max_tool_rounds
+                    temperature=temperature,
+                    top_p=top_p,
+                    max_tokens=max_tokens,
+                    frequency_penalty=None,
+                    presence_penalty=None
                 )
             else:
                 response = LLMResponse(error=f"Unsupported model type: {model_type}")
@@ -1292,3 +1405,25 @@ class LLMBackend:
 
     def clear_history(self) -> None:
         self.history.clear()
+
+    async def restore_history_from_db(self, pack_id: str, rounds: int = 4):
+        """从数据库恢复历史对话到 ConversationHistory"""
+        if not self._memory_manager:
+            return
+        try:
+            conversations = self._memory_manager.get_conversations(
+                pack_id=pack_id,
+                session_id=None,
+                limit=rounds
+            )
+            if not conversations:
+                return
+
+            # conversations 按时间倒序，反转后正序加入 history
+            for conv in reversed(conversations):
+                self.history.add("user", conv["user_message"])
+                self.history.add("assistant", conv["llm_response"])
+
+            logger_info.info(f"[LLM] Restored {len(conversations)} rounds of conversation history from DB")
+        except Exception as e:
+            logger_info.warning(f"[LLM] Failed to restore conversation history: {e}")

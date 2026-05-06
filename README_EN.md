@@ -158,4 +158,4 @@ Using `trigger_editor.py`, you can configure highly personalized reaction logic.
 By downloading, installing, debugging, or running any content from this project/repository, you are deemed to have read and agreed to all terms in [LEGAL.md](docs/LEGAL_EN.md). If you do not agree, please stop using and delete the resources immediately.
 
 ---
-Parts of this document were generated with the assistance of large language models, and translations were also completed by large language models. Any deviations do not represent the author's true intent.
+Parts of this document were generated with the assistance of large language models.

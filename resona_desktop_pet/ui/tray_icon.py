@@ -34,17 +34,17 @@ class TrayIcon(QSystemTrayIcon):
         menu = QMenu()
         menu.setStyleSheet("QMenu { background-color: #2d2d2d; border: 1px solid #555; border-radius: 5px; padding: 5px; } QMenu::item { color: white; padding: 8px 25px; border-radius: 3px; } QMenu::item:selected { background-color: #404040; } QMenu::separator { height: 1px; background: #555; margin: 5px 10px; }")
         
-        show_action = QAction("Show/Hide", self)
+        show_action = QAction("显示/隐藏", self)
         show_action.triggered.connect(self._on_show)
         menu.addAction(show_action)
         menu.addSeparator()
-        
-        settings_action = QAction("Settings", self)
+
+        settings_action = QAction("设置", self)
         settings_action.triggered.connect(self._on_settings)
         menu.addAction(settings_action)
         menu.addSeparator()
-        
-        exit_action = QAction("Exit", self)
+
+        exit_action = QAction("退出", self)
         exit_action.triggered.connect(self._on_exit)
         menu.addAction(exit_action)
         self.setContextMenu(menu)

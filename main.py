@@ -1,5 +1,6 @@
 import sys
 import os
+import subprocess
 import logging
 from pathlib import Path
 project_root = Path(__file__).parent.absolute()
@@ -12,6 +13,8 @@ import ctypes
 import json
 import time
 import random
+if sys.platform == "win32":
+    import winreg
 from pathlib import Path
 from datetime import datetime
 from typing import Any, Optional
@@ -185,7 +188,7 @@ class TimerScheduler(QObject):
         if not self.enabled:
             return
         now = time.time()
-        busy = self.controller.main_window.is_busy
+        busy = self.controller.main_window.is_busy or self.controller.main_window.has_input_text
         if self._last_busy and not busy:
             self._busy_released_at = now
         self._last_busy = busy
@@ -402,7 +405,8 @@ class ApplicationController(QObject):
         self._sovits_startup_thread = None
         self._sovits_ready = False
         self._pending_tts_requests: list = []
-        
+        self._watchdog_process: Optional[subprocess.Popen] = None
+
         if self.config.html_enabled:
             QTimer.singleShot(3000, self._start_web_server)
         
@@ -432,7 +436,8 @@ class ApplicationController(QObject):
                     shell=True,
                     stderr=subprocess.STDOUT,
                     stdout=subprocess.PIPE,
-                    timeout=2
+                    timeout=2,
+                    creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
                 )
                 raw_out = result.stdout
                 try:
@@ -538,6 +543,9 @@ class ApplicationController(QObject):
         if hasattr(self.config, 'memory_enabled') and self.config.memory_enabled and self.config.memory_startup_processing:
             logger.info("[Main] Scheduling startup memory processing...")
             asyncio.run_coroutine_threadsafe(self._process_startup_memory(), self._loop)
+        if self.memory_manager and self.config.memory_resume_history:
+            logger.info("[Main] Scheduling conversation history restoration...")
+            asyncio.run_coroutine_threadsafe(self._restore_conversation_history(), self._loop)
         
         self.audio_player = AudioPlayer(self)
         self.audio_player.playback_finished.connect(self._on_audio_finished)
@@ -581,7 +589,8 @@ class ApplicationController(QObject):
             import subprocess
             mocker_script = self.project_root / "tools" / "sensor_mocker.py"
             logger.info(f"[Debug] debugtrigger is ENABLED. Starting sensor mocker: {mocker_script}")
-            self._mocker_process = subprocess.Popen([sys.executable, str(mocker_script)], cwd=str(self.project_root))
+            self._mocker_process = subprocess.Popen([sys.executable, str(mocker_script)], cwd=str(self.project_root),
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0)
         self.main_window.pack_changed.connect(self._handle_pack_change)
         self.main_window._pack_change_handler_connected = True
         logger.info("[PackSwitch] pack_changed signal connected")
@@ -613,9 +622,16 @@ class ApplicationController(QObject):
         self._idle_trigger_timer.timeout.connect(self._check_idle_trigger)
         if self.config.idle_trigger_enabled:
             self._idle_trigger_timer.start(1000)
+        self._screen_watch_timer = QTimer()
+        self._screen_watch_timer.timeout.connect(self._check_screen_watch)
+        if self.config.screen_watch_enabled:
+            self._screen_watch_timer.start(int(self.config.screen_watch_interval * 1000))
+        self._last_screen_watch_time = time.time()  # prevent immediate first trigger
         QTimer.singleShot(2000, self._check_startup_events)
         QTimer.singleShot(1000, self._init_hotkeys)
         QTimer.singleShot(500, self.main_window.manual_show)
+        QTimer.singleShot(0, self._apply_auto_start)
+        QTimer.singleShot(100, self._apply_shortcut)
     @property
     def is_busy(self) -> bool:
         return self._is_chain_executing or self.main_window.is_busy or self.interaction_locked
@@ -840,9 +856,9 @@ class ApplicationController(QObject):
                 audio_path = None
                 duration = 0.0
                 if self.config.sovits_enabled and response.text_tts:
-                     tts_res = await self.tts_backend.synthesize(
-                         response.text_tts, 
-                         response.emotion, 
+                     tts_res = await self._synthesize_with_retry(
+                         response.text_tts,
+                         response.emotion,
                          pack_id=current_pack_id
                      )
                      if tts_res.audio_path:
@@ -980,10 +996,10 @@ class ApplicationController(QObject):
                         listening_texts = json.load(f)
                 except: pass
         
-        listen_text_entry = random.choice(listening_texts) if listening_texts else "Listening..."
+        listen_text_entry = random.choice(listening_texts) if listening_texts else "录音中..."
         if isinstance(listen_text_entry, dict):
-            val = listen_text_entry.get("text", "Listening...")
-            listen_text = str(val) if val is not None else "Listening..."
+            val = listen_text_entry.get("text", "录音中...")
+            listen_text = str(val) if val is not None else "录音中..."
         else:
             listen_text = str(listen_text_entry)
         
@@ -1208,14 +1224,45 @@ class ApplicationController(QObject):
         if not language and self.config.use_pack_settings:
             language = self.config.pack_manager.get_info("tts_language", "ja")
 
-        result = await self.tts_backend.synthesize(text, emotion, language=language)
+        result = await self._synthesize_with_retry(text, emotion, language=language)
         self.tts_ready.emit(result)
+
+    async def _synthesize_with_retry(self, text: str, emotion: str, pack_id: Optional[str] = None, language: Optional[str] = None):
+        """Try TTS synthesis, restarting SoVITS on connection failure and retrying once."""
+        result = await self.tts_backend.synthesize(text, emotion, pack_id=pack_id, language=language)
+        if result.error:
+            # Check for connection-related errors that suggest SoVITS died
+            err_lower = result.error.lower()
+            is_connection_error = any(kw in err_lower for kw in [
+                "winerror 64", "connection", "reset", " refused", "winerror 10053",
+                "winerror 10054", "network name", "对方重置", "远程主机", "broken pipe",
+                "cannot connect", "unreachable", "timeout"
+            ])
+            if is_connection_error and self.sovits_manager is not None:
+                logger.warning(f"[Main] SoVITS connection lost ({result.error}). Restarting and retrying...")
+                try:
+                    # Run blocking restart in thread to avoid blocking the event loop
+                    def _restart_sovits():
+                        self.sovits_manager.stop()
+                        time.sleep(1)
+                        return self.sovits_manager.start(timeout=60, kill_existing=True)
+                    success = await asyncio.to_thread(_restart_sovits)
+                    if success:
+                        logger.info("[Main] SoVITS restarted, retrying TTS...")
+                        result = await self.tts_backend.synthesize(text, emotion, pack_id=pack_id, language=language)
+                    else:
+                        logger.error("[Main] SoVITS restart failed, skipping TTS retry")
+                except Exception as e:
+                    logger.error(f"[Main] SoVITS restart failed with exception: {e}")
+        return result
     def _handle_behavior_trigger(self, actions: list):
         if not actions or self.main_window.manual_hidden: return
         if self._pack_switch_pending: return
         if self.config.disable_actions: return
         if self.interaction_locked: return
         if self.main_window.is_processing or self.main_window.is_listening:
+            return
+        if self.main_window.has_input_text:
             return
 
         if self.is_busy:
@@ -1255,6 +1302,8 @@ class ApplicationController(QObject):
             return
         if self.is_busy:
             return
+        if self.main_window.has_input_text:
+            return
         now = time.time()
         elapsed = now - self._last_question_time
         start_delay = self.config.idle_trigger_start_delay
@@ -1290,6 +1339,40 @@ class ApplicationController(QObject):
             self.llm_response_ready.emit(response)
         except Exception as e:
             logger.error(f"[Main] Idle LLM query failed: {e}")
+            from resona_desktop_pet.backend.llm_backend import LLMResponse
+            self.llm_response_ready.emit(LLMResponse(error=str(e)))
+
+    def _check_screen_watch(self):
+        if not self.config.screen_watch_enabled:
+            return
+        if self.is_busy:
+            return
+        if self.main_window.has_input_text:
+            return
+        now = time.time()
+        if now - self._last_screen_watch_time < self.config.screen_watch_cooldown:
+            return
+        if self.main_window.is_processing or self.main_window.is_speaking or self.main_window.is_listening:
+            return
+        self._last_screen_watch_time = now
+        logger.info("[Main] Screen watch triggered")
+        prompt = self.config.screen_watch_prompt
+        self.main_window.start_thinking()
+        asyncio.run_coroutine_threadsafe(
+            self._query_llm_screen_watch(prompt),
+            self._loop
+        )
+
+    async def _query_llm_screen_watch(self, prompt: str):
+        try:
+            response = await self.llm_backend.query_idle(
+                prompt,
+                pack_id=self.config.pack_manager.active_pack_id,
+                include_screenshot=True
+            )
+            self.llm_response_ready.emit(response)
+        except Exception as e:
+            logger.error(f"[Main] Screen watch LLM query failed: {e}")
             from resona_desktop_pet.backend.llm_backend import LLMResponse
             self.llm_response_ready.emit(LLMResponse(error=str(e)))
 
@@ -1670,11 +1753,41 @@ class ApplicationController(QObject):
             QTimer.singleShot(2000, self.main_window.finish_processing)
     def _handle_fullscreen_status(self, hidden):
         self.main_window.set_fullscreen_hidden(hidden)
+    def _start_watchdog(self):
+        """
+        自动启动 SoVITS 看门狗脚本（sovits_watchdog.py）
+        看门狗会监控 SoVITS TTS 引擎的状态，在检测到错误时自动重启 SoVITS 进程。
+        看门狗以独立子进程方式运行，主程序退出时自动跟随退出。
+        """
+        watchdog_script = self.project_root / "sovits_watchdog.py"
+        if not watchdog_script.exists():
+            logger.warning(f"[Main] Watchdog script not found: {watchdog_script}")
+            return
+
+        try:
+            # 使用当前 Python 解释器启动看门狗，隐藏窗口
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+
+            self._watchdog_process = subprocess.Popen(
+                [sys.executable, str(watchdog_script)],
+                cwd=str(self.project_root),
+                startupinfo=startupinfo,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            logger.info(f"[Main] SoVITS watchdog started (PID: {self._watchdog_process.pid})")
+        except Exception as e:
+            logger.error(f"[Main] Failed to start SoVITS watchdog: {e}")
+            self._watchdog_process = None
+
     def _check_startup_events(self):
         enabled = self.config.weather_enabled
         logger.info(f"[Main] Startup events check. Weather enabled: {enabled}")
         if enabled:
             asyncio.run_coroutine_threadsafe(self._check_weather(), self._loop)
+        # 启动 SoVITS 看门狗（延迟稍久一点，等 SoVITS 完全就绪）
+        QTimer.singleShot(5000, self._start_watchdog)
     async def _check_weather(self):
         import aiohttp
         logger.info("[Weather] Starting weather service (Geo-locating via IP)...")
@@ -1708,7 +1821,16 @@ class ApplicationController(QObject):
             await processor.process_startup()
         except Exception as e:
             logger.error(f"[Main] Error processing startup memory: {e}")
-    
+
+    async def _restore_conversation_history(self):
+        """Restore previous conversation history from DB into LLM context"""
+        try:
+            pack_id = self.config.pack_manager.active_pack_id or "default"
+            rounds = self.config.memory_resume_history_rounds
+            await self.llm_backend.restore_history_from_db(pack_id, rounds)
+        except Exception as e:
+            logger.error(f"[Main] Error restoring conversation history: {e}")
+
     def _run_loop(self):
         asyncio.set_event_loop(self._loop)
         self._loop.run_forever()
@@ -1755,6 +1877,8 @@ class ApplicationController(QObject):
 
     def _on_settings_saved(self):
         logger.info("[Main] Config updated via settings dialog.")
+        self._apply_auto_start()
+        self._apply_shortcut()
         self.config.load()
         if self.behavior_monitor:
             self.behavior_monitor.load_triggers()
@@ -1762,10 +1886,93 @@ class ApplicationController(QObject):
             self.timer_scheduler.refresh_config()
         if self.main_window:
             self.main_window.refresh_from_config()
+        # Restart screen watch timer based on new config
+        self._screen_watch_timer.stop()
+        if self.config.screen_watch_enabled:
+            self._screen_watch_timer.start(int(self.config.screen_watch_interval * 1000))
+        self._last_screen_watch_time = time.time()
+
+    def _apply_auto_start(self):
+        if sys.platform != "win32":
+            return
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        value_name = "ResonaDesktopPet"
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE)
+        except OSError:
+            key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path)
+        if self.config.auto_start_on_boot:
+            python_exe = sys.executable
+            if python_exe.lower().endswith("python.exe"):
+                pythonw = python_exe[:-4] + "w.exe"
+                if os.path.exists(pythonw):
+                    python_exe = pythonw
+            script_path = Path(__file__).resolve()
+            cmd = f'"{python_exe}" "{script_path}"'
+            winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, cmd)
+        else:
+            try:
+                winreg.DeleteValue(key, value_name)
+            except OSError:
+                pass
+        winreg.CloseKey(key)
+
+    def _apply_shortcut(self):
+        """Update desktop shortcut to use pythonw.exe (no console) or python.exe based on config."""
+        try:
+            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+            project_path = str(self.project_root).lower()
+            target = None
+            for f in os.listdir(desktop):
+                if not f.lower().endswith(".lnk"):
+                    continue
+                fp = os.path.join(desktop, f)
+                try:
+                    with open(fp, "rb") as fh:
+                        data = fh.read(4096)
+                    if project_path.replace("/", "\\").encode("utf-8") in data or \
+                       project_path.replace("\\", "/").encode("utf-8") in data:
+                        target = fp
+                        break
+                except:
+                    continue
+            if not target:
+                return
+            python_exe = sys.executable
+            if self.config.hide_console_window:
+                if python_exe.lower().endswith("python.exe"):
+                    pythonw = python_exe[:-4] + "w.exe"
+                    if os.path.exists(pythonw):
+                        python_exe = pythonw
+            import subprocess
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+            ps_script = f'''
+            $s = New-Object -ComObject WScript.Shell
+            $sc = $s.CreateShortcut('{target}')
+            $sc.TargetPath = '{python_exe}'
+            $sc.Arguments = '"{Path(__file__).resolve()}"'
+            $sc.WorkingDirectory = '{self.project_root}'
+            $sc.Save()
+            '''
+            subprocess.run(["powershell.exe", "-Command", ps_script],
+                         startupinfo=startupinfo,
+                         capture_output=True)
+            logger.info(f"[Main] Desktop shortcut updated: {python_exe}")
+        except Exception as e:
+            logger.error(f"[Main] Failed to update shortcut: {e}")
+
     def force_exit(self):
         if self._cleanup_started:
             os._exit(0)
         self._cleanup_started = True
+        try:
+            if self._watchdog_process:
+                self._watchdog_process.terminate()
+                self._watchdog_process = None
+        except Exception:
+            pass
         try:
             if self._mocker_process:
                 self._mocker_process.terminate()
@@ -1824,6 +2031,12 @@ class ApplicationController(QObject):
                 logger.error(f"[Main] Error saving temporary session: {e}")
 
         def _cleanup_task():
+            if self._watchdog_process:
+                try:
+                    self._watchdog_process.terminate()
+                except Exception:
+                    pass
+                self._watchdog_process = None
             if self._mocker_process:
                 self._mocker_process.terminate()
             if self.behavior_monitor:
@@ -1928,6 +2141,3 @@ def main():
     sys.exit(app.exec())
 if __name__ == "__main__":
     main()
-#你先别问我为什么写得这么逆天，我就问你能不能跑吧
-#只要能动，里面到底是个八音盒还是个废料场真的很重要吗
-#不要试图去理解我在想什么，我也不知道昨天的我在想什么，最好也不要让LLM来

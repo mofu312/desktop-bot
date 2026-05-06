@@ -57,4 +57,4 @@ This project uses the PySide6 (LGPL v3) framework. In accordance with LGPL requi
 - **Severability**: If any provision of this agreement is held to be invalid or unenforceable for any reason, the remaining provisions shall remain valid and binding.
 
 ---
-Parts of this document were generated with the assistance of large language models, and translations were also completed by large language models. Any deviations do not represent the author's true intent.
+Parts of this document were generated with the assistance of large language models.
