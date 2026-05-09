@@ -18,8 +18,8 @@
             {"id": "risona_outfit_05", "path": "assets/sprites/risona_outfit_05"}
         ],
         "sovits_model": {
-            "vits_weights": "models/sovits/resona_e16_s23888.pth",
-            "gpt_weights": "models/sovits/resona-e30.ckpt",
+            "vits_weights": "models/sovits/resona_e16_s23888_restored.pth",
+            "gpt_weights": "models/sovits/resona-e50.ckpt",
             "version": "v2Pro"
         }
     },
