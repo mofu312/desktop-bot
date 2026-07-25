@@ -5,6 +5,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.pyd
 .Python
 build/
 develop-eggs/
@@ -97,7 +98,8 @@ resona_tts_*/
 # Config with secrets
 # =========================
 # Keep config.cfg template but warn about API keys
-# config.cfg  # Uncomment if you don't want to track config
+config.cfg
+packs/*/override_config.cfg
 
 # =========================
 # Minecraft Mod Development (Recursive)
@@ -111,7 +113,6 @@ resona_tts_*/
 **/run_server/
 **/run_client/
 **/dump/
-**/logs/
 **/debug/
 **/reobf/
 **/eclipse/
@@ -176,18 +177,12 @@ coverage.xml
 *.ipynb
 
 # =========================
-# Distribution / Packaging
+# Distribution / Packaging / PyInstaller
 # =========================
 *.manifest
 *.spec
 pip-log.txt
 pip-delete-this-directory.txt
-
-# =========================
-# PyInstaller
-# =========================
-*.manifest
-*.spec
 dist/
 build/
 
@@ -212,3 +207,36 @@ android-client/**/*.aab
 android-client/**/*.iml
 android-client/*.keystore
 packs/*/models/
+
+# =========================
+# External binary tools
+# =========================
+ffmpeg/
+
+# =========================
+# Archives (should not be in version control)
+# =========================
+*.7z
+*.zip
+*.rar
+*.tar.gz
+*.tar.bz2
+
+# =========================
+# Runtime session data
+# =========================
+memory/db/*.db
+!memory/db/Example_Pack_conversations.db
+memory/temp_session.json
+packs/*/state.json
+!packs/Example_Pack/state.json
+
+# =========================
+# Python version management
+# =========================
+.python-version
+
+# =========================
+# Node.js / Frontend tooling
+# =========================
+node_modules/
