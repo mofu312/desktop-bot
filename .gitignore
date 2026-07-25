@@ -214,6 +214,13 @@ packs/*/models/
 ffmpeg/
 
 # =========================
+# Git maintenance / cleanup scripts (one-time use)
+# =========================
+check_git.py
+check_git_history.py
+clean_git_history.py
+
+# =========================
 # Archives (should not be in version control)
 # =========================
 *.7z

@@ -1,0 +1,496 @@
+[General]
+# --- 基础设置 ---
+model_select = 2
+#如果你的llm_mode=local，此项会被无视。具体的模型列表查看最下方，基于OpenAI的模型大部分没问题，小部分有特殊处理
+llm_mode = cloud
+#cloud=使用远程api，local=使用本地llm。由于我无法部署本地llm，我无从得知它是否正常起作用
+active_pack = Resona_Default
+#启动时选择的资源包，接受文件夹的名称。留空会崩溃
+charactername = 大藏 里想奈
+#你想显示的角色名称。留空会崩溃
+default_outfit = risona_outfit_00
+#默认启动时显示的立绘组。留空会崩溃
+debugtrigger = false
+#启动调试trigger的工具，转变程序的运行模式
+use_pack_settings = true
+#如果为true则使用pack.json中定义的username,charactername,tts_language
+plugins_enabled = false
+#是否开启加载资源包中的插件功能
+disable_actions = false
+#是否完全禁用所有actions
+
+# --- 思考与交互文本 ---
+thinkingtext = true
+#正在思考时是否显示随机的思考文本
+thinkingtextswitch = true
+#思考显示的随机文本是否轮换
+thinkingtexttime = 1.0
+#第一次显示思考文本之前经过的秒数
+thinkingtextswitchtime = 5.0
+#思考文本每次轮换的秒数
+listeningtext = true
+#启动录音时是否显示随机的录音文本
+
+# --- UI 显示与动画 ---
+always_show_ui = true
+#是否禁用自动隐藏/透明度降低。如果为true，立绘将始终完全显示
+always_on_top = true
+#是否总在最前端
+debug_panel = true
+#是否开启调试面板，可以伪造LLM返回的结果进行任意测试
+show_in_taskbar = false
+#在托盘中显示图标
+auto_start_on_boot = true
+#是否开机自动启动
+hide_console_window = false
+#是否隐藏命令行窗口（启动时不弹出CMD）
+global_show_hotkey = ctrl+alt+0
+#快速将窗口提到最前端的快捷键
+tray_icon_path = icon.ico
+#使用的托盘图标的文件
+idle_opacity = 0.8
+#失去焦点时的透明度
+idle_fade_delay = 3.0
+#鼠标离开立绘区域多久之后算失去焦点
+monitor_music = true
+#是否监控系统音乐播放状态
+text_read_speed = 0.5
+#每个汉字预留多少时间给你读。只在SoVITS关闭时起作用
+base_display_time = 5.0
+#基础的阅读时间。阅读时间=text_read_speed*汉字个数+base_display_time
+font_scale = 0.9
+#字体的缩放倍率
+dialog_color = 0,0,0
+#对话框背景颜色，支持RGB (0,0,0) 或HEX (000000)，Hex优先
+dialog_opacity = 35
+#对话框不透明度（0-100），默认35（约等于90/255）
+dialog_font =
+#对话框使用的字体文件路径 (.ttf/.otf)，支持绝对路径或相对路径
+dialog_text_color = 255,255,255
+#对话框文本颜色，支持RGB (255,255,255) 或HEX (FFFFFF)
+dialog_text_stroke_enabled = true
+#是否启用文字描边效果，对输入框内的文本不生效
+dialog_text_stroke_color = 0,0,0
+#文字描边颜色，支持RGB或HEX格式，默认纯黑
+dialog_text_stroke_width = 1
+#文字描边宽度 (0-10像素)
+dialog_text_shadow_enabled = true
+#是否启用文字阴影效果
+dialog_text_shadow_color = 0,0,0
+#文字阴影颜色，支持RGB或HEX格式，默认纯黑
+dialog_text_shadow_offset_x = 1
+#文字阴影水平偏移（像素），正数向右，负数向左
+dialog_text_shadow_offset_y = -2
+#文字阴影垂直偏移（像素），正数向下，负数向上
+dialog_text_shadow_blur = 3
+#文字阴影模糊半径 (0-20像素)
+dialog_use_custom_image = true
+#是否使用自定义图片作为对话框背景。如果为true，将使用dialog_image_path指定的图片替代程序绘制的对话框
+dialog_image_path = resona_desktop_pet/ui/window_resona.png
+#自定义对话框图片路径，支持绝对路径或相对路径
+dialog_image_opacity = 70
+#自定义对话框图片的不透明度（0-100），默认100（完全不透明）
+header_offset_x = 0
+#角色名/用户名标题的横向偏移（像素），正数向右，负数向左
+header_offset_y = 22
+#角色名/用户名标题的纵向偏移（像素），正数向下，负数向上
+text_offset_x = 0
+#文本输入/显示区域的横向偏移（像素），正数向右，负数向左
+text_offset_y = 20
+#文本输入/显示区域的纵向偏移（像素），正数向下，负数向上
+
+# --- 窗口尺寸 (Luna UI 会自适应立绘，此为建议范围) ---
+width = 650
+#窗口的宽度，像素
+height = 780
+#窗口的高度，像素。实际运行时会根据对应的值算出最合理的范围，因此你的修改可能没有作用
+dialogue_width = 380
+#对话框的宽度，像素
+dialogue_height = 180
+#对话框的高度，像素
+dialogue_clear_timeout = 5
+#对话框失去焦点之后自动清空的时间。疑似有bug
+
+[Physics]
+#是否启用物理引擎
+#以对话框最下方，左侧，右侧和立绘的顶端计算
+#可能造成潜在的性能问题
+enabled = false
+#刷新率（0=自动读取显示器刷新率）
+refresh_rate = 0
+#是否启用重力
+gravity_enabled = true
+#重力大小（像素/秒^2）
+gravity = 300.0
+#是否启用额外加速度
+accel_enabled = false
+#X 方向加速度
+accel_x = 0.0
+#Y 方向加速度
+accel_y = -10.0
+#是否反转重力与加速度方向
+invert_forces = false
+#是否启用摩擦/阻尼
+friction_enabled = true
+#摩擦系数（0-1，越小衰减越快）
+friction = 0.98
+#是否启用反弹
+bounce_enabled = true
+#反弹弹性系数（0-1）
+elasticity = 0.6
+#最大速度（0=不限制）
+max_speed = 2000.0
+#拖拽释放时速度乘数
+drag_velocity_multiplier = 1.2
+#拖拽释放时速度上限（0=不限制）
+drag_velocity_max = 2500.0
+#在N帧内没有移动时，判断为静止状态
+sleep_still_frames = 10
+#静止状态下，速度低于此值时，判断为休息状态。此时完全停止所有向量
+sleep_speed_threshold = 30
+#是否与其他窗口碰撞
+collide_windows = true
+#是否忽略最大化窗口
+ignore_maximized_windows = true
+#是否忽略全屏窗口
+ignore_fullscreen_windows = true
+#是否忽略无边框全屏窗口
+ignore_borderless_fullscreen = true
+#屏幕边界内缩/外扩（负数可让宠物超出屏幕）
+screen_padding = 0
+
+[Behavior]
+# --- 行为监听设置 ---
+enabled = true
+#是否启动整个监听，如果关闭则所有trigger.json中定义的事件无法触发
+interval = 1.0
+#每隔N秒，程序会启动一次扫描
+action_bring_to_front = true
+#执行任意action时是否立刻把程序前端提到最前端。如果always_on_top启用，此项会被无视
+behavior_text_read_multiplier = 3.0
+#触发事件文本时，如果没有对应语音，将阅读时间乘以这个倍率
+trigger_cooldown = 30.0
+#全局trigger的冷却时间，秒
+post_busy_delay = 5.0
+#在执行完任何action之后，等待N秒再执行队列中的下一个action
+
+[Advanced]
+# --- 敏感权限与自动化 ---
+#use_ui_automation与check_last_input如果启用则会直接启动管理员权限的程序
+# 是否启用 UI 自动化（用于获取部分窗口详细信息）
+use_ui_automation = false
+# 是否检查最后一次输入（用于判定用户是否闲置）
+check_last_input = false
+# 是否监控剪贴板
+monitor_clipboard = true
+# 特殊日期触发模式 (always, once, disabled)
+special_dates_mode = once
+
+[History]
+# LLM 上下文记忆轮数，越长越烧token。0是完全关闭。这个history是本地维护的
+max_rounds = 10
+
+[Memory]
+enabled = true
+# 是否启用长期记忆系统，如果启用可能会显著减慢返回速度，加大token消耗
+per_pack_memory = true
+# 是否按每个pack区分记忆
+force_operation = true
+# 是否强制LLM使用记忆工具，追加一份提示
+startup_processing = false
+# 是否在启动时处理上一次会话，会使用下方配置的模型（如果没有则使用默认配置）
+startup_base_url =
+# 启动时使用的LLM base_url（留空使用当前配置）
+startup_api_key =
+# 启动时使用的LLM api_key（留空使用当前配置）
+startup_model_name =
+# 启动时使用的LLM模型
+conversation_retention_days = 0
+# 对话历史保留天数，超过此时间的对话将被自动清理（0表示永久保留）
+resume_history = true
+# 是否在启动时将之前对话的历史恢复到 LLM 上下文中，让角色记住上次聊了什么
+resume_history_rounds = 0
+# 恢复多少轮历史对话（0表示使用 [History] max_rounds 的值）
+vector_enabled = true
+# 是否启用向量存储，会导致内存占用上涨，可能带来更好的记忆存储效果
+vector_model_path = memory/sentence-transformers
+# ONNX模型文件夹路径（相对项目根目录）
+vector_model_file = onnx/model_quint8_avx2.onnx
+
+
+[STT]
+# --- 语音输入 (SenseVoice) ---
+enabled = 1
+#是否启动语音输入，基于sherpa-onnx，默认使用多语言模型，确保你的收音足够好
+hotkey = ctrl+shift+i
+#语音输入的热键，在录制时再次按下是立刻停止录制
+language = zh
+#显式固定的语言 (auto, zh, en, ja, ko, yue)。默认为 auto 自动检测。auto的状态下识别效率不会很理想
+silence_threshold = 1.0
+#完全静音达到这个时间之后自动停止。秒
+max_duration = 6.5
+#最多能录音多少秒
+model_dir = ./models/stt/sensevoice
+download_url = https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2
+
+[SoVITS]
+# --- 语音合成 (GPT-SoVITS) ---
+enabled = 1
+#是否启动SoVITS，如果否则LLM返回的文本不会有语音
+tts_language = ja
+#语音合成的默认语言 (ja, zh, en, ko)。只测试过ja
+device = cuda
+#cuda对应NVIDIA显卡，改为cpu可使用cpu推理，会大幅增大内存占用并减慢推理速度，但是几乎不占用GPU。至少确保你有2.5g以上的空闲显存
+model_version = v2Pro
+#推理模型的版本。如果你不知道这是什么，别动
+api_port = 9880
+#SoVITS使用的端口
+api_timeout = 120
+#经过这个时间，如果SoVITS没有回复，则认为sovits已崩溃
+kill_existing = true
+#启动前是否试图杀死当前正在占用对应端口的进程
+mode = local
+#运行模式: local=本地启动SoVITS进程, server=连接到远程SoVITS服务
+server_auto_discover = true
+#server模式下是否自动发现服务端
+server_host = 127.0.0.1
+#server模式下的服务端地址
+server_port = 9876
+#server模式下的服务端WebSocket端口
+temperature = 0.7
+top_p = 0.85
+speed = 1.0
+top_k = 15
+#如果你不知道以上都是什么，别动
+text_split_method = cut0
+#cut: 0 不切 1 凑四句切 2 中文标点切 3 英文标点切 4 中英文标点切 5 任何标点都切
+fragment_interval = 0.25
+#每个切片中间等待的时间，秒。如果cut0，则此项无效
+
+[MCP]
+enabled = false
+#是否启用MCP服务器
+#启用后，会从mcpserver目录中自动搜索并加载所有MCP服务，改变工作流程
+#由此造成的token过度消费和各种各样的问题后果自负
+server_dir = mcpserver
+#决定MCP服务器的工作目录，默认是mcpserver
+startup_timeout = 20
+#MCP服务器启动超时时间，秒。如果在这个时间内没有启动完成，则认为启动失败
+max_tool_rounds = 30
+#如果启用MCP，所有工具在一次对话中最多能被调用执行的总轮数。超出会强行中止本轮对话
+hide_public_prefixes = sts_
+#对主程序屏蔽以这个开头的MCP服务器工具
+
+[Weather]
+# --- 天气插件 ---
+enabled = true
+#是否在程序启动时检测你当前ip地址的天气
+api_key = YOUR_WEATHER_API_KEY_HERE
+# 请从 https://www.weatherapi.com/ 注册免费 API key
+
+[Prompt]
+# --- 提示词来源 ---
+source = file
+#设置为file则使用下方file_path定义的文件名，设置为text则使用content中定义的文本
+content =
+file_path = prompt_yuusei.txt
+enable_ip_context = true
+#是否在提示词中注入你当前的IP。如果你使用代理，可能不准确
+enable_time_context = 1
+#是否在提示词中注入当前时间。0为关闭，1为开启
+
+
+[Custom]
+username = YOUR_USERNAME
+#你的用户名
+
+[Model_1_OpenAI]
+api_key =
+base_url = https://api.openai.com/v1
+model_name = gpt-4o
+temperature = 0.95
+top_p = 1.0
+max_tokens = 768
+
+[Model_2_DeepSeek]
+api_key =
+base_url = https://api.deepseek.com
+model_name = deepseek-v4-pro
+temperature = 1.0
+top_p = 1.0
+max_tokens = 2048
+frequency_penalty = 0.7
+presence_penalty = 0.3
+
+[Model_3_Claude]
+api_key =
+base_url = https://api.anthropic.com
+model_name =
+temperature = 0.95
+top_p = 1.0
+max_tokens = 768
+
+[Model_4_Kimi]
+api_key =
+base_url = https://api.moonshot.cn/v1
+model_name =
+temperature = 0.95
+top_p = 1.0
+max_tokens = 768
+
+[Model_5_Gemini]
+api_key =
+base_url = https://generativelanguage.googleapis.com
+model_name =
+temperature = 1.0
+top_p = 1.0
+max_tokens = 768
+
+[Model_6_Grok]
+api_key =
+base_url = https://api.x.ai/v1
+model_name =
+temperature = 0.95
+top_p = 1.0
+max_tokens = 768
+
+[Model_7_Qwen]
+api_key =
+base_url = https://dashscope.aliyuncs.com/compatible-mode/v1
+model_name =
+temperature = 0.95
+top_p = 1.0
+max_tokens = 768
+
+[Model_8_GitHub]
+api_key =
+base_url = https://models.inference.ai.azure.com/chat/completions
+model_name =
+temperature = 0.95
+top_p = 1.0
+max_tokens = 768
+
+[Model_9_OpenAI_Compatible]
+#任何使用OpenAI兼容API格式的模型
+api_key =
+base_url =
+model_name =
+temperature = 0.95
+top_p = 1.0
+max_tokens = 2048
+frequency_penalty = 0.3
+presence_penalty = 0.2
+
+[Model_10_Zhipu]
+api_key =
+base_url = https://open.bigmodel.cn/api/paas/v4/
+model_name = glm-4-flash
+temperature = 0.95
+top_p = 1.0
+max_tokens = 768
+
+[Model_Local]
+base_url = http://localhost:11434/v1
+api_key = ollama
+model_name =
+temperature = 0.95
+top_p = 1.0
+max_tokens = 768
+
+[OCR]
+enabled = false
+#是否启用OCR识别。会在每次LLM返回文本前，截取屏幕并识别其中的文字
+#会导致你的Token消耗量大幅增加，显著增大返回延迟与每次运行的成本。你知道我在说什么的，后果自负
+#某些情况下会导致你的预设prompt出现注意力涣散的问题
+#如果你将OCR启用情况下的所有日志发送给任何人，请确保没有泄露你的隐私信息
+#自行注册然后填写你的secret_id与secret_key
+vlm_enabled = true
+#是否启用多模态模型
+#如果启用，每次提交question会将你的屏幕截图，发送给多模态模型。此项启用时OCR会被自动禁用
+#Token消耗量会大幅度增加，同时如果你试图给一个不支持多模态的大模型启用这个功能，你的API配额会被极速消耗
+#可能会造成隐私泄露等问题，启用后果自负
+provider = tencent
+#tencent=腾讯云，baidu=百度智能云
+include_process_list = true
+#是否在每次Question发送前，带上你当前显示器正在渲染的程序的进程名与窗口标题。可以独立于OCR开启
+#会导致你的Token消耗量大幅增加，显著增大每次运行的成本。你知道我在说什么的，后果自负
+sentence_limit = 4
+#如果设置为0，则不会发送"Keep your response under X sentences"的约束。此处数字决定约束为多少句
+#通常来说只建议在启用OCR时打开，不启用OCR的话可能会导致注意力过度分配
+#可能完全没有用。取决于你使用的模型的效果和你的Prompt，不保证总是能起作用
+baidu_api_key =
+baidu_secret_key =
+#百度智能云控制台地址：https://console.bce.baidu.com/ai/#/ai/ocr/overview/index
+tencent_secret_id =
+tencent_secret_key =
+#腾讯云控制台地址：https://console.cloud.tencent.com/ocr/general
+
+[Timer]
+# 定时任务调度器开关
+enabled = false
+# 轮询收件箱（inbox_file）的间隔（秒）
+poll_interval = 0.5
+# MCP 工具写入的收件箱文件路径（主程序从中读取并清空）
+inbox_file = TEMP/timer_inbox.json
+# 主程序内部维护的任务队列文件路径（持久化未完成任务）
+tasks_file = TEMP/timer_tasks.json
+# 是否在触发时间前提前合成语音（预加载），以实现零延迟触发
+pre_synthesize = true
+# 预合成前要求的 TTS 空闲时间（秒），防止打断正在进行的对话
+tts_idle_sec = 2.0
+# 任务就绪后的最小触发延迟（秒），用于平滑状态切换
+trigger_delay = 2.0
+
+[HTML]
+# --- HTML服务器设置 ---
+enabled = false
+#是否启用HTML服务器
+host = 0.0.0.0
+#监听地址。0.0.0.0表示允许局域网访问，127.0.0.1表示仅本机
+port = 8000
+#监听端口
+static_dir = html
+#静态文件目录（相对于项目根目录）
+upload_dir = TEMP/uploads
+#上传文件临时存储目录
+max_connections = 10
+#最大并发连接数
+session_timeout = 3600
+#会话超时时间（秒）
+
+
+[ExternalAPI]
+# --- 外部 WebSocket 服务设置 ---
+# 此服务仅接受 JSON 格式的消息，例如: {"question": "你好"}
+enabled = true
+# 是否开启外部 WebSocket 服务
+host = 127.0.0.1
+# 监听的主机地址
+port = 12345
+# 如果桌宠正忙（思考/说话/录音），是否忽略外部输入的问题
+ignore_if_busy = true
+# 是否向外部 WebSocket 客户端返回处理状态消息（ok/error）
+return_status = true
+
+[IdleTrigger]
+enabled = false
+# 是否启用闲置自动触发功能
+start_delay = 1200.0
+# 开始检测触发的闲置时间阈值（秒）。用户闲置超过此时间后才会开始触发检测
+probability = 0.01
+# 每秒触发的概率（0.0-1.0）。例如 0.05 表示每秒有 5% 的概率触发
+min_triggers = 3
+# 至少触发次数。保证在长时间闲置期间必定会触发一定次数
+# 此项会暂时绕过probability的限制
+prompt = The user has been idle for a while. Say something brief to check on them or start a casual conversation.
+# 预设的触发文本。当闲置触发时，会将此文本作为 user question 发送给 LLM
+
+[ScreenWatch]
+enabled = false
+# 是否启用屏幕自动观察功能
+interval = 60.0
+# 每次观察的时间间隔（秒）
+cooldown = 10.0
+# 角色说完话后至少等待多少秒才能再次触发
+prompt = Look at the user's screen carefully. What are they doing right now? Describe the current scene briefly and make a short natural observation or comment as the character would. Keep it to 1-2 sentences. If they're playing a game, comment on the game progress. If they're working, make a playful remark about it.
+# 发送给LLM的观察提示文本
