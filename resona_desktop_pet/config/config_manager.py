@@ -915,7 +915,7 @@ class ConfigManager:
 
     @property
     def weather_api_key(self) -> str:
-        return self.get("Weather", "api_key", "24760f76c64e469ca1f125800262401")
+        return self.get("Weather", "api_key", "")
 
 
     @property
