@@ -1,9 +1,7 @@
 [English](README_EN.md) | [中文](README.md)
 
-> **🚀 想要制作自己的桌宠角色？**
-> 查看最新发布的 **[🎨 小白资源包创作/修改保姆级指南](docs/CUSTOM_PACK_GUIDE_FOR_BEGINNERS.md)**，从零开始打造你的专属伴侣！
 
-# Resona Desktop Pet（雷索纳桌面宠物）
+# Desktop Pet（
 
 基于 AI 多模态技术的 Windows 桌面虚拟宠物，集成大语言模型 (LLM)、语音合成 (TTS)、语音识别 (STT)、物理引擎与 MCP 扩展能力。
 
