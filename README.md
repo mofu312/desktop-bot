@@ -26,7 +26,6 @@ Resona-Desktop-Pet/
 │   └── cleanup_manager.py               # 进程清理
 │
 ├── packs/                               # 角色资源包
-│   └── Example_Pack/                    #   示例包（可据此创建自定义角色）
 │
 ├── mcpserver/                           # MCP 工具脚本
 │
@@ -108,22 +107,6 @@ cd Resona-Desktop-Pet
 | `delay` | 动作之间的延迟等待 |
 | `physics_*` | 物理推力、临时禁用、力场倍率 |
 | `exit_app` | 退出程序 |
-
-## 资源包结构
-
-每个角色 = 一个资源包文件夹：
-
-```
-packs/Your_Pack/
-├── pack.json              # 角色清单
-├── assets/sprites/        # 立绘素材（建议 16:9）
-├── assets/audio/          # 语音文件（.wav/.mp3）
-├── logic/                 # 表情/触发/错误配置
-├── prompts/               # 角色系统提示词
-└── plugins/               # 自定义 Python 插件（可选）
-```
-
-支持的 9 种情绪：`smile` `serious` `angry` `sad` `thinking` `surprised` `dislike` `smirk` `embarrassed`
 
 ## 配置说明
 
@@ -211,7 +194,7 @@ server_port = 9876
 - **灵感来源**：[luna-sama](https://github.com/annali07/luna-sama)
 - **语音合成**：[GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS)（v2pro-20250604）
 - **语音识别**：阿里 FunASR SenseVoiceSmall + [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)
-
+r
 ## 许可证
 
 本项目源代码采用 [MIT](LICENSE) 许可证。
